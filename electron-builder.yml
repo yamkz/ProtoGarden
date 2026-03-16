@@ -1,0 +1,12 @@
+appId: com.protogarden.app
+productName: ProtoGarden
+directories:
+  output: dist
+mac:
+  category: public.app-category.developer-tools
+  target: dir
+  icon: assets/icon.icns
+files:
+  - src/**/*
+  - package.json
+  - "!**/node_modules/.cache"
