@@ -204,3 +204,18 @@ Verification commands（確認用コマンド）
   - メニューバー追加: File（新規ワークスペース Cmd+N）、Edit（元に戻す Cmd+Z、カット/コピー/ペースト）、View（ズームリセット Cmd+0、DevTools）
   - ストレージフォルダ消失時のハンドリング: 起動時にworkspace.list()を試行、失敗したらウェルカム画面に戻す
   - before-quitでスナップショット保存時に二重quit防止のためisQuittingフラグを追加
+
+## POST-RELEASE UPDATES（Task01完了後の追加実装）
+
+### Noteノード追加
+- Context/Prompt切替式のウィンドウ型テキストUI。将来のAIデザインハブ構想の基盤
+- ContextモードはグレーUI、Promptモードはブルー + モデル選択（Opus 4.6/Sonnet 4.6/Haiku 4.5/GPT-4o/o3）+ Runボタン（UIのみ、AI実行は未実装）
+- noteノードのtextareaにフォーカス中はCmd+C/V等のキーボードショートカットをキャンバス側でスキップし、通常のテキスト操作を優先
+- textarea内スクロール時にwheelイベントがキャンバスに伝播しないようstopPropagation
+
+### HTML/URLノード進む/戻るボタン
+- ヘッダーに◀▶ナビゲーションボタン追加（iframe.contentWindow.history.back/forward）
+
+### スナップショット独立化
+- 複製ノードが同じソースHTMLを共有していてもスナップショットが独立するように、保存パスを`html/{dataNodeId}/_snapshot.html`から`snapshots/{canvasNodeId}.html`に変更
+- ギャラリーへの戻り遅延問題: saveAllSnapshotsのpostMessageタイムアウトを3s→0.8sに短縮、unloadをtry-catchで囲んでエラー時も確実に遷移

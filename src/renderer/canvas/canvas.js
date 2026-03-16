@@ -22,10 +22,13 @@ const Canvas = {
   },
 
   async unload() {
-    // Save DOM snapshots for interacted HTML nodes before leaving
-    if (typeof NodeHtml !== 'undefined') {
-      await NodeHtml.saveAllSnapshots();
-      NodeHtml.interactedNodes.clear();
+    // Save DOM snapshots for HTML nodes before leaving
+    try {
+      if (typeof NodeHtml !== 'undefined') {
+        await NodeHtml.saveAllSnapshots();
+      }
+    } catch (e) {
+      console.error('[ProtoGarden] Snapshot save error:', e);
     }
     this.save();
     this.workspace = null;
@@ -51,6 +54,7 @@ const Canvas = {
       case 'image': NodeImage.render(node, contentEl); break;
       case 'html': if (typeof NodeHtml !== 'undefined') NodeHtml.render(node, contentEl); break;
       case 'url': if (typeof NodeUrl !== 'undefined') NodeUrl.render(node, contentEl); break;
+      case 'note': if (typeof NodeNote !== 'undefined') NodeNote.render(node, contentEl); break;
     }
 
     container.appendChild(el);
@@ -234,7 +238,7 @@ const Canvas = {
     this._handlers.keydown = (e) => {
       if (App.currentView !== 'canvas') return;
       // Don't intercept when typing in modal or editing text
-      if (e.target.closest('.modal-input') || e.target.closest('input')) return;
+      if (e.target.closest('.modal-input') || e.target.closest('input') || e.target.closest('textarea')) return;
       const isEditing = !!NodeBase.editingTextNodeId;
 
       if (e.code === 'Space' && !e.repeat) {
@@ -278,7 +282,7 @@ const Canvas = {
     // Paste: images from clipboard or node paste
     this._handlers.paste = async (e) => {
       if (App.currentView !== 'canvas') return;
-      if (e.target.closest('.modal-input') || e.target.closest('input')) return;
+      if (e.target.closest('.modal-input') || e.target.closest('input') || e.target.closest('textarea')) return;
       if (NodeBase.editingTextNodeId) return;
 
       const items = e.clipboardData?.items;

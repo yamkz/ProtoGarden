@@ -77,43 +77,42 @@ function registerHandlers(mainWindow) {
   });
   // === HTML Snapshot (DOM state preservation) ===
 
+  // Snapshots are stored per canvas-node-id (not per asset-nodeId)
+  // so duplicated nodes get independent snapshots
   ipcMain.handle(IPC.HTML_SAVE_SNAPSHOTS, async (_, workspaceId, snapshotsMap) => {
     const storagePath = storage.getStoragePath();
-    console.log('[ProtoGarden] Saving snapshots. Storage:', storagePath, 'Workspace:', workspaceId, 'Nodes:', Object.keys(snapshotsMap));
     if (!storagePath) return {};
+    const snapshotDir = require('path').join(storagePath, 'assets', workspaceId, 'snapshots');
+    if (!require('fs').existsSync(snapshotDir)) {
+      require('fs').mkdirSync(snapshotDir, { recursive: true });
+    }
     const results = {};
-    for (const [nodeId, html] of Object.entries(snapshotsMap)) {
+    for (const [canvasNodeId, html] of Object.entries(snapshotsMap)) {
       try {
-        const snapshotDir = require('path').join(storagePath, 'assets', workspaceId, 'html', nodeId);
-        if (!require('fs').existsSync(snapshotDir)) {
-          require('fs').mkdirSync(snapshotDir, { recursive: true });
-        }
-        const snapshotPath = require('path').join(snapshotDir, '_snapshot.html');
+        const snapshotPath = require('path').join(snapshotDir, `${canvasNodeId}.html`);
         require('fs').writeFileSync(snapshotPath, html, 'utf-8');
-        console.log('[ProtoGarden] Snapshot saved:', snapshotPath, 'Size:', html.length);
-        results[nodeId] = true;
+        results[canvasNodeId] = true;
       } catch (e) {
-        console.error('[ProtoGarden] Snapshot save error:', e.message);
-        results[nodeId] = false;
+        results[canvasNodeId] = false;
       }
     }
     return results;
   });
 
-  ipcMain.handle(IPC.HTML_HAS_SNAPSHOT, (_, workspaceId, nodeId) => {
+  ipcMain.handle(IPC.HTML_HAS_SNAPSHOT, (_, workspaceId, canvasNodeId) => {
     const storagePath = storage.getStoragePath();
     if (!storagePath) return false;
     const snapshotPath = require('path').join(
-      storagePath, 'assets', workspaceId, 'html', nodeId, '_snapshot.html'
+      storagePath, 'assets', workspaceId, 'snapshots', `${canvasNodeId}.html`
     );
     return require('fs').existsSync(snapshotPath);
   });
 
-  ipcMain.handle(IPC.HTML_DELETE_SNAPSHOT, (_, workspaceId, nodeId) => {
+  ipcMain.handle(IPC.HTML_DELETE_SNAPSHOT, (_, workspaceId, canvasNodeId) => {
     const storagePath = storage.getStoragePath();
     if (!storagePath) return;
     const snapshotPath = require('path').join(
-      storagePath, 'assets', workspaceId, 'html', nodeId, '_snapshot.html'
+      storagePath, 'assets', workspaceId, 'snapshots', `${canvasNodeId}.html`
     );
     try { require('fs').unlinkSync(snapshotPath); } catch {}
   });

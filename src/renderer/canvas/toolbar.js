@@ -17,6 +17,12 @@ document.getElementById('btn-add-text').addEventListener('click', () => {
   NodeText.create(pos.x - 120, pos.y - 60);
 });
 
+document.getElementById('btn-add-note').addEventListener('click', () => {
+  const vp = document.getElementById('canvas-viewport').getBoundingClientRect();
+  const pos = Canvas.screenToCanvas(vp.left + vp.width / 2, vp.top + vp.height / 2);
+  NodeNote.create(pos.x - 210, pos.y - 140);
+});
+
 document.getElementById('btn-add-image').addEventListener('click', () => NodeImage.pickAndCreate());
 document.getElementById('btn-add-html').addEventListener('click', () => NodeHtml.pickAndCreate());
 document.getElementById('btn-add-url').addEventListener('click', () => NodeUrl.promptAndCreate());

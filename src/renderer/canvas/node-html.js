@@ -6,8 +6,6 @@ const NodeHtml = {
     { label: 'FHD (1920×1080)', width: 1920, height: 1080 },
   ],
 
-  interactedNodes: new Set(), // kept for compatibility
-
   async pickAndCreate() {
     const htmlPath = await window.api.file.pickHtml();
     if (!htmlPath) return;
@@ -22,19 +20,16 @@ const NodeHtml = {
 
   async render(node, contentEl) {
     const nodeEl = contentEl.closest('.canvas-node');
-
-    // Check if snapshot exists
-    const hasSnapshot = await window.api.html.hasSnapshot(Canvas.workspace.id, node.data.nodeId);
+    // Use canvas node id for snapshot (independent per node, even if duplicated)
+    const hasSnapshot = await window.api.html.hasSnapshot(Canvas.workspace.id, node.id);
 
     const iframe = document.createElement('iframe');
     iframe.className = 'node-iframe';
 
     if (hasSnapshot) {
-      // Load snapshot (preserved state, not interactive)
-      iframe.src = `proto-garden://${Canvas.workspace.id}/html/${node.data.nodeId}/_snapshot.html`;
+      iframe.src = `proto-garden://${Canvas.workspace.id}/snapshots/${node.id}.html`;
       nodeEl.classList.add('has-snapshot');
     } else {
-      // Load original (interactive)
       iframe.src = `proto-garden://${Canvas.workspace.id}/html/${node.data.nodeId}/${node.data.entryFile}`;
     }
 
@@ -44,9 +39,7 @@ const NodeHtml = {
   async reloadOriginal(nodeId) {
     const node = Canvas.workspace.nodes.find(n => n.id === nodeId);
     if (!node) return;
-    // Delete snapshot
-    await window.api.html.deleteSnapshot(Canvas.workspace.id, node.data.nodeId);
-    // Reload iframe with original
+    await window.api.html.deleteSnapshot(Canvas.workspace.id, nodeId);
     const el = document.querySelector(`.canvas-node[data-node-id="${nodeId}"]`);
     if (!el) return;
     el.classList.remove('has-snapshot');
@@ -54,13 +47,10 @@ const NodeHtml = {
     if (iframe) {
       iframe.src = `proto-garden://${Canvas.workspace.id}/html/${node.data.nodeId}/${node.data.entryFile}`;
     }
-    this.interactedNodes.delete(node.data.nodeId);
   },
 
-  // Save DOM snapshots for all live HTML nodes
   async saveAllSnapshots() {
     if (!Canvas.workspace) return;
-
     const htmlNodes = Canvas.workspace.nodes.filter(n => n.type === 'html');
     if (htmlNodes.length === 0) return;
 
@@ -69,22 +59,18 @@ const NodeHtml = {
 
     for (const node of htmlNodes) {
       const el = document.querySelector(`.canvas-node[data-node-id="${node.id}"]`);
-      if (!el || el.classList.contains('has-snapshot')) continue; // Skip snapshot-loaded nodes
+      if (!el || el.classList.contains('has-snapshot')) continue;
       const iframe = el.querySelector('.node-iframe');
       if (!iframe || !iframe.contentWindow) continue;
 
-      const dataNodeId = node.data.nodeId;
+      const canvasNodeId = node.id;
       const p = new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          console.log('[ProtoGarden] Snapshot timeout for', dataNodeId);
-          resolve();
-        }, 3000);
-
+        const timeout = setTimeout(() => resolve(), 800);
         const handler = (e) => {
           if (e.data && e.data.type === 'proto-garden-dom' && e.source === iframe.contentWindow) {
             window.removeEventListener('message', handler);
             clearTimeout(timeout);
-            snapshotsMap[dataNodeId] = e.data.html;
+            snapshotsMap[canvasNodeId] = e.data.html;
             resolve();
           }
         };
@@ -95,8 +81,6 @@ const NodeHtml = {
     }
 
     await Promise.all(promises);
-    console.log('[ProtoGarden] Snapshots captured:', Object.keys(snapshotsMap).length);
-
     if (Object.keys(snapshotsMap).length > 0) {
       await window.api.html.saveSnapshots(Canvas.workspace.id, snapshotsMap);
     }
@@ -115,48 +99,74 @@ const NodeHtml = {
     Canvas.scheduleSave();
   },
 
-  renderHeaderExtras(node, headerEl) {
-    const presets = document.createElement('div');
-    presets.className = 'node-presets';
+  navigateBack(nodeId) {
+    const el = document.querySelector(`.canvas-node[data-node-id="${nodeId}"]`);
+    const iframe = el?.querySelector('.node-iframe');
+    if (iframe) try { iframe.contentWindow.history.back(); } catch {}
+  },
 
-    // Reload button (prominent)
+  navigateForward(nodeId) {
+    const el = document.querySelector(`.canvas-node[data-node-id="${nodeId}"]`);
+    const iframe = el?.querySelector('.node-iframe');
+    if (iframe) try { iframe.contentWindow.history.forward(); } catch {}
+  },
+
+  renderHeaderExtras(node, headerEl) {
+    const controls = document.createElement('div');
+    controls.className = 'node-presets';
+
+    // Back button
+    const backBtn = document.createElement('button');
+    backBtn.className = 'node-nav-btn';
+    backBtn.innerHTML = '&#9664;';
+    backBtn.title = '戻る';
+    backBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    backBtn.addEventListener('click', (e) => { e.stopPropagation(); this.navigateBack(node.id); });
+    controls.appendChild(backBtn);
+
+    // Forward button
+    const fwdBtn = document.createElement('button');
+    fwdBtn.className = 'node-nav-btn';
+    fwdBtn.innerHTML = '&#9654;';
+    fwdBtn.title = '進む';
+    fwdBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    fwdBtn.addEventListener('click', (e) => { e.stopPropagation(); this.navigateForward(node.id); });
+    controls.appendChild(fwdBtn);
+
+    // Separator
+    const sep1 = document.createElement('div');
+    sep1.className = 'preset-separator';
+    controls.appendChild(sep1);
+
+    // Reload button
     const reloadBtn = document.createElement('button');
     reloadBtn.className = 'node-reload-btn';
     reloadBtn.textContent = '↻ Reload';
-    reloadBtn.title = '元のHTMLを再読込（操作可能に戻す）';
+    reloadBtn.title = '元のHTMLを再読込';
     reloadBtn.addEventListener('mousedown', (e) => e.stopPropagation());
-    reloadBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.reloadOriginal(node.id);
-    });
-    presets.appendChild(reloadBtn);
+    reloadBtn.addEventListener('click', (e) => { e.stopPropagation(); this.reloadOriginal(node.id); });
+    controls.appendChild(reloadBtn);
 
     // Separator
-    const sep = document.createElement('div');
-    sep.className = 'preset-separator';
-    presets.appendChild(sep);
+    const sep2 = document.createElement('div');
+    sep2.className = 'preset-separator';
+    controls.appendChild(sep2);
 
     // Mobile
     const mobileBtn = document.createElement('button');
     mobileBtn.className = 'node-preset-btn';
     mobileBtn.textContent = 'Mobile';
     mobileBtn.addEventListener('mousedown', (e) => e.stopPropagation());
-    mobileBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.applySize(node.id, 375, 812);
-    });
-    presets.appendChild(mobileBtn);
+    mobileBtn.addEventListener('click', (e) => { e.stopPropagation(); this.applySize(node.id, 375, 812); });
+    controls.appendChild(mobileBtn);
 
     // Tablet
     const tabletBtn = document.createElement('button');
     tabletBtn.className = 'node-preset-btn';
     tabletBtn.textContent = 'Tablet';
     tabletBtn.addEventListener('mousedown', (e) => e.stopPropagation());
-    tabletBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.applySize(node.id, 768, 1024);
-    });
-    presets.appendChild(tabletBtn);
+    tabletBtn.addEventListener('click', (e) => { e.stopPropagation(); this.applySize(node.id, 768, 1024); });
+    controls.appendChild(tabletBtn);
 
     // PC dropdown
     const pcWrap = document.createElement('div');
@@ -174,26 +184,14 @@ const NodeHtml = {
       item.className = 'preset-submenu-item';
       item.textContent = p.label;
       item.addEventListener('mousedown', (e) => e.stopPropagation());
-      item.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.applySize(node.id, p.width, p.height);
-        pcMenu.classList.remove('open');
-      });
+      item.addEventListener('click', (e) => { e.stopPropagation(); this.applySize(node.id, p.width, p.height); pcMenu.classList.remove('open'); });
       pcMenu.appendChild(item);
     });
     pcWrap.appendChild(pcMenu);
+    pcBtn.addEventListener('click', (e) => { e.stopPropagation(); pcMenu.classList.toggle('open'); });
+    document.addEventListener('mousedown', (e) => { if (!pcWrap.contains(e.target)) pcMenu.classList.remove('open'); });
+    controls.appendChild(pcWrap);
 
-    pcBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      pcMenu.classList.toggle('open');
-    });
-
-    document.addEventListener('mousedown', (e) => {
-      if (!pcWrap.contains(e.target)) pcMenu.classList.remove('open');
-    });
-
-    presets.appendChild(pcWrap);
-
-    headerEl.insertBefore(presets, headerEl.querySelector('.node-delete'));
+    headerEl.insertBefore(controls, headerEl.querySelector('.node-delete'));
   },
 };

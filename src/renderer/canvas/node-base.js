@@ -36,6 +36,10 @@ const NodeBase = {
       const content = document.createElement('div');
       content.className = 'node-content';
       el.appendChild(content);
+    } else if (node.type === 'note') {
+      const content = document.createElement('div');
+      content.className = 'node-content';
+      el.appendChild(content);
     } else {
       const header = document.createElement('div');
       header.className = 'node-header';
@@ -46,6 +50,9 @@ const NodeBase = {
 
       if (node.type === 'html' && typeof NodeHtml !== 'undefined') {
         NodeHtml.renderHeaderExtras(node, header);
+      }
+      if (node.type === 'url' && typeof NodeUrl !== 'undefined') {
+        NodeUrl.renderHeaderExtras(node, header);
       }
 
       const deleteBtn = document.createElement('button');
@@ -82,6 +89,7 @@ const NodeBase = {
     if (node.type === 'image') return 'Image';
     if (node.type === 'html') return 'HTML';
     if (node.type === 'url') { try { return new URL(node.data.url).hostname; } catch { return 'URL'; } }
+    if (node.type === 'note') return node.data.mode || 'Note';
     return '';
   },
 
@@ -176,6 +184,7 @@ const NodeBase = {
       if (e.target.closest('.node-delete') || e.target.closest('.node-resize-handle')) return;
       if (e.target.closest('.node-preset-btn') || e.target.closest('.preset-submenu-item') || e.target.closest('.preset-submenu')) return;
       if (e.target.closest('.node-iframe')) return;
+      if (e.target.closest('.note-textarea') || e.target.closest('.note-mode-btn') || e.target.closest('.note-model-btn') || e.target.closest('.note-run-btn')) return;
       if (node.type === 'text' && this.editingTextNodeId === node.id) return;
       e.stopPropagation();
       // Don't start actual drag yet - wait for mousemove (to allow dblclick)
@@ -189,7 +198,7 @@ const NodeBase = {
 
     const header = el.querySelector('.node-header');
     if (header) header.addEventListener('mousedown', startDrag);
-    if (node.type === 'image' || node.type === 'text') {
+    if (node.type === 'image' || node.type === 'text' || node.type === 'note') {
       el.addEventListener('mousedown', startDrag);
     }
 
