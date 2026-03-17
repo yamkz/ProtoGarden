@@ -369,8 +369,8 @@
 /* Connection Ports */
 .connection-port {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   background: #5bb8f5;
   border: 2px solid #fff;
   border-radius: 50%;
@@ -389,7 +389,7 @@
 
 .connection-port:hover,
 .connection-port.snap-highlight {
-  transform: translate(-50%, -50%) scale(1.4);
+  transform: translate(-50%, -50%) scale(1.5);
   background: #4a9eff;
 }
 

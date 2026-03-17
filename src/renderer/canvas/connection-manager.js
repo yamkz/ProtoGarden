@@ -5,7 +5,22 @@ const ConnectionManager = {
   _reconnecting: null,
 
   PORTS: ['top', 'bottom', 'left', 'right'],
-  SNAP_DISTANCE: 20,
+  BASE_SNAP_DISTANCE: 25,
+
+  /** Snap distance adjusted for current zoom level */
+  getSnapDistance() {
+    const zoom = Canvas.zoom || 1;
+    // At 100% → 25px, at 50% → 50px, at 25% → 100px
+    return this.BASE_SNAP_DISTANCE / zoom;
+  },
+
+  /** Stroke width adjusted for zoom so lines stay visible when zoomed out */
+  getStrokeWidth(base) {
+    const zoom = Canvas.zoom || 1;
+    if (zoom >= 0.8) return base;
+    // Below 80% zoom, scale up to keep visible (min zoom 0.1 → max 4x)
+    return base / Math.max(zoom, 0.25);
+  },
 
   init() {
     const container = document.getElementById('canvas-container');
@@ -94,15 +109,16 @@ const ConnectionManager = {
     const d = this.calcPath(srcPos, conn.sourcePort, tgtPos, conn.targetPort);
     const isSelected = conn.id === this.selectedConnectionId;
 
-    // Visible path — dashed, 1.5px
+    const sw = this.getStrokeWidth(isSelected ? 3 : 2.5);
+    const dashScale = this.getStrokeWidth(1);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', d);
     path.setAttribute('class', 'connection-path');
     path.setAttribute('data-connection-id', conn.id);
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', isSelected ? '#4a9eff' : 'rgba(74, 158, 255, 0.45)');
-    path.setAttribute('stroke-width', isSelected ? '2.5' : '1.5');
-    path.setAttribute('stroke-dasharray', isSelected ? 'none' : '6 4');
+    path.setAttribute('stroke-width', String(sw));
+    path.setAttribute('stroke-dasharray', isSelected ? 'none' : `${6 * dashScale} ${4 * dashScale}`);
     path.setAttribute('marker-end', isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)');
 
     // Hit area for click/drag detection
@@ -112,7 +128,7 @@ const ConnectionManager = {
     hit.setAttribute('data-connection-id', conn.id);
     hit.setAttribute('fill', 'none');
     hit.setAttribute('stroke', 'transparent');
-    hit.setAttribute('stroke-width', '16');
+    hit.setAttribute('stroke-width', String(this.getStrokeWidth(20)));
     hit.style.pointerEvents = 'stroke';
     hit.style.cursor = 'pointer';
 
@@ -183,11 +199,12 @@ const ConnectionManager = {
 
   addConnection(sourceNodeId, sourcePort, targetNodeId, targetPort) {
     if (!Canvas.workspace.connections) Canvas.workspace.connections = [];
-    const existing = Canvas.workspace.connections.find(c =>
+    // Prevent exact duplicate (same source+target port pair)
+    const exactDup = Canvas.workspace.connections.find(c =>
       c.sourceNodeId === sourceNodeId && c.sourcePort === sourcePort &&
       c.targetNodeId === targetNodeId && c.targetPort === targetPort
     );
-    if (existing) return;
+    if (exactDup) return;
 
     const conn = {
       id: crypto.randomUUID(),
@@ -254,7 +271,7 @@ const ConnectionManager = {
     preview.setAttribute('class', 'connection-preview');
     preview.setAttribute('fill', 'none');
     preview.setAttribute('stroke', 'rgba(74, 158, 255, 0.7)');
-    preview.setAttribute('stroke-width', '1.5');
+    preview.setAttribute('stroke-width', String(this.getStrokeWidth(2.5)));
     preview.setAttribute('stroke-dasharray', '6 4');
     preview.setAttribute('marker-end', 'url(#arrowhead)');
     preview.setAttribute('d', `M ${srcPos.x} ${srcPos.y} L ${srcPos.x} ${srcPos.y}`);
@@ -272,7 +289,7 @@ const ConnectionManager = {
     const srcPos = this.getPortPosition(srcNode, this._dragging.sourcePort);
 
     let snapped = null;
-    let minDist = this.SNAP_DISTANCE;
+    let minDist = this.getSnapDistance();
     Canvas.workspace.nodes.forEach(n => {
       if (n.id === this._dragging.sourceNodeId) return;
       this.PORTS.forEach(port => {

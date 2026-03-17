@@ -38,3 +38,6 @@ Scope（この段階で何をやるか）
   - ...
 - MILESTONE 02
   - ...
+
+## POST-RELEASE UPDATES
+- TASK完了後の追加実装があればここに追記すること
