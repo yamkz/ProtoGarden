@@ -526,6 +526,8 @@ const NodeBase = {
         if (snap.guides.length > 0) SmartGuide.showGuides(snap.guides);
         else SmartGuide.clearGuides();
       }
+      // Update connections during resize
+      if (typeof ConnectionManager !== 'undefined') ConnectionManager.renderAll();
     });
 
     window.addEventListener('mouseup', () => {
