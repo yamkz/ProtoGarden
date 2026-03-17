@@ -111,3 +111,25 @@ Verification commands（確認用コマンド）
   - クリック判定用にstroke-width:14pxの透明パスを重ねるヒットエリア方式。SVGのpointer-events:strokeで精度良く判定
   - 3マイルストーンを一括実装（全機能が密接に関連するため分割せず実装）
   - ドラッグ中のリアルタイム追従: mousemove内でConnectionManager.renderAll()を呼ぶ方式。ノード数が少ない前提で十分な性能
+
+## POST-RELEASE UPDATES
+
+### SVG描画修正
+- SVGのwidth:0/height:0ではElectronでオーバーフロー描画が機能しない → width=1/height=1 + overflow:visibleに変更
+- canvas-nodeのoverflow:hiddenが接続ポートをクリップしていた → overflow:visibleに変更、node-contentでコンテンツのクリップを維持
+- リサイズハンドル(z-index:10)が接続ポートを覆っていた → ポートのz-indexを15に
+
+### ポートドラッグのイベント処理
+- 個別ポート要素のmousedownハンドラがbindSelect/bindDragとの伝播衝突で発火しない問題 → viewportレベルのmousedownで`.connection-port`を最初に検出する方式に全面変更
+- 先端ドラッグでの繋ぎ直し時にアプリがフリーズする問題 → `_reconnecting`フラグでviewportのmousemove/mouseupが処理するように修正
+
+### カーブ・スタイル調整
+- ベジェ制御点を固定80pxから距離の35%に比例（30-150pxクランプ）に変更。自然なカーブに
+- 線の太さ: 1.8px（選択時2.5px）、点線スタイル
+- 矢印マーカー: markerUnits=userSpaceOnUseで固定サイズ化
+
+### ズーム適応
+- スナップ距離がズームに反比例（100%で25px、25%で100px）
+- 線の太さがズームアウト時に√補正で太くなる（50%以下で見えづらい問題の解消）
+- 接続ポートドットもズーム補正で拡大、updatePortSizes()でズーム変更時に動的更新
+- 1ポートから複数接続可能に（完全同一ペアのみブロック）
