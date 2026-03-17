@@ -110,12 +110,29 @@ const Canvas = {
     const isCrossWorkspace = this.clipboard.sourceWorkspaceId !== this.workspace.id;
     NodeBase.deselectAll();
 
+    // Calculate viewport center in canvas coordinates
+    const vp = document.getElementById('canvas-viewport').getBoundingClientRect();
+    const centerX = (vp.width / 2 - this.panX) / this.zoom;
+    const centerY = (vp.height / 2 - this.panY) / this.zoom;
+
+    // Calculate bounding box of copied nodes to center them
+    const nodes = this.clipboard.nodes;
+    let bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;
+    nodes.forEach(n => {
+      bx1 = Math.min(bx1, n.x);
+      by1 = Math.min(by1, n.y);
+      bx2 = Math.max(bx2, n.x + n.width);
+      by2 = Math.max(by2, n.y + n.height);
+    });
+    const offsetX = centerX - (bx1 + bx2) / 2;
+    const offsetY = centerY - (by1 + by2) / 2;
+
     for (const orig of this.clipboard.nodes) {
       const copy = JSON.parse(JSON.stringify(orig));
       const oldId = copy.id;
       copy.id = crypto.randomUUID();
-      copy.x += 30;
-      copy.y += 30;
+      copy.x += isCrossWorkspace ? offsetX : 30;
+      copy.y += isCrossWorkspace ? offsetY : 30;
       const maxZ = this.workspace.nodes.length > 0
         ? Math.max(...this.workspace.nodes.map(n => n.zIndex || 1)) : 0;
       copy.zIndex = maxZ + 1;
