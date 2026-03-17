@@ -12,7 +12,7 @@ const ConnectionManager = {
     if (this.svgEl) this.svgEl.remove();
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.id = 'connections-svg';
-    svg.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:0;';
+    svg.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:99989;';
     // Arrow marker
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');

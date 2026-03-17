@@ -142,11 +142,15 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-m);
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   transition: box-shadow 0.15s ease;
+}
+
+.canvas-node .node-content {
+  overflow: hidden;
 }
 
 .canvas-node.selected {
