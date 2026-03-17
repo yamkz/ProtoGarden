@@ -175,6 +175,52 @@ function registerHandlers(mainWindow) {
     if (result.canceled) return null;
     return result.filePaths[0];
   });
+  // === Cross-workspace asset copy ===
+  ipcMain.handle(IPC.FILE_COPY_ASSETS_BETWEEN, (_, srcWs, dstWs, nodeType, dataNodeId, canvasNodeId) => {
+    const fs = require('fs');
+    const path = require('path');
+    const storagePath = storage.getStoragePath();
+    if (!storagePath) return;
+
+    if (nodeType === 'image' && dataNodeId) {
+      const srcDir = path.join(storagePath, 'assets', srcWs, 'images');
+      const dstDir = path.join(storagePath, 'assets', dstWs, 'images');
+      if (fs.existsSync(srcDir)) {
+        fs.mkdirSync(dstDir, { recursive: true });
+        const files = fs.readdirSync(srcDir).filter(f => f.startsWith(dataNodeId));
+        files.forEach(f => {
+          const src = path.join(srcDir, f);
+          const dst = path.join(dstDir, f);
+          if (!fs.existsSync(dst)) fs.copyFileSync(src, dst);
+        });
+      }
+    }
+
+    if (nodeType === 'html' && dataNodeId) {
+      const srcDir = path.join(storagePath, 'assets', srcWs, 'html', dataNodeId);
+      const dstDir = path.join(storagePath, 'assets', dstWs, 'html', dataNodeId);
+      if (fs.existsSync(srcDir) && !fs.existsSync(dstDir)) {
+        fs.mkdirSync(dstDir, { recursive: true });
+        fileManager.copyDirSync(srcDir, dstDir);
+      }
+    }
+  });
+
+  ipcMain.handle(IPC.FILE_COPY_SNAPSHOT_BETWEEN, (_, srcWs, dstWs, srcNodeId, dstNodeId) => {
+    const fs = require('fs');
+    const path = require('path');
+    const storagePath = storage.getStoragePath();
+    if (!storagePath) return;
+
+    const srcPath = path.join(storagePath, 'assets', srcWs, 'snapshots', `${srcNodeId}.html`);
+    const dstDir = path.join(storagePath, 'assets', dstWs, 'snapshots');
+    const dstPath = path.join(dstDir, `${dstNodeId}.html`);
+    if (fs.existsSync(srcPath)) {
+      fs.mkdirSync(dstDir, { recursive: true });
+      fs.copyFileSync(srcPath, dstPath);
+    }
+  });
+
   // === HTML Snapshot (DOM state preservation) ===
 
   // Snapshots are stored per canvas-node-id (not per asset-nodeId)

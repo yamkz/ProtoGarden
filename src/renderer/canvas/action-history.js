@@ -76,6 +76,50 @@ const ActionHistory = {
         if (direction === 'undo') this._restoreNodes(action.nodes);
         else this._removeNodes(action.nodes.map(n => n.id));
         break;
+
+      case 'node-lock':
+        this._setLock(action.nodeId, direction === 'undo' ? action.before : action.after);
+        break;
+
+      case 'group-create':
+        if (direction === 'undo') {
+          // Remove group node, clear groupId from children
+          action.childIds.forEach(cid => {
+            const child = Canvas.workspace.nodes.find(n => n.id === cid);
+            if (child) delete child.groupId;
+          });
+          this._removeNodes([action.groupNode.id]);
+          Canvas.renderAllNodes();
+        } else {
+          // Re-create group
+          Canvas.workspace.nodes.push(JSON.parse(JSON.stringify(action.groupNode)));
+          action.childIds.forEach(cid => {
+            const child = Canvas.workspace.nodes.find(n => n.id === cid);
+            if (child) child.groupId = action.groupNode.id;
+          });
+          Canvas.renderAllNodes();
+        }
+        break;
+
+      case 'group-ungroup':
+        if (direction === 'undo') {
+          // Re-create group
+          Canvas.workspace.nodes.push(JSON.parse(JSON.stringify(action.groupNode)));
+          action.childIds.forEach(cid => {
+            const child = Canvas.workspace.nodes.find(n => n.id === cid);
+            if (child) child.groupId = action.groupNode.id;
+          });
+          Canvas.renderAllNodes();
+        } else {
+          // Remove group, clear groupId
+          action.childIds.forEach(cid => {
+            const child = Canvas.workspace.nodes.find(n => n.id === cid);
+            if (child) delete child.groupId;
+          });
+          this._removeNodes([action.groupNode.id]);
+          Canvas.renderAllNodes();
+        }
+        break;
     }
     Canvas.scheduleSave();
   },
@@ -149,5 +193,16 @@ const ActionHistory = {
     node.zIndex = zIndex;
     const el = document.querySelector(`.canvas-node[data-node-id="${nodeId}"]`);
     if (el) el.style.zIndex = zIndex;
+  },
+
+  _setLock(nodeId, locked) {
+    const node = Canvas.workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    node.locked = locked;
+    const el = document.querySelector(`.canvas-node[data-node-id="${nodeId}"]`);
+    if (el) {
+      el.remove();
+      Canvas.renderNode(node);
+    }
   },
 };

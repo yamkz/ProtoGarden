@@ -29,7 +29,11 @@ const NodeBase = {
     el.style.height = `${node.height}px`;
     el.style.zIndex = node.zIndex || 1;
 
-    if (node.type === 'text') {
+    if (node.type === 'group') {
+      const content = document.createElement('div');
+      content.className = 'node-content';
+      el.appendChild(content);
+    } else if (node.type === 'text') {
       el.style.color = node.data.color || '#e8e8e8';
       const content = document.createElement('div');
       content.className = 'node-content';
@@ -76,6 +80,15 @@ const NodeBase = {
       el.appendChild(h);
     });
 
+    // Lock indicator
+    if (node.locked) {
+      el.classList.add('locked');
+      const lockIcon = document.createElement('div');
+      lockIcon.className = 'node-lock-icon';
+      lockIcon.textContent = '\u{1F512}';
+      el.appendChild(lockIcon);
+    }
+
     this.bindDrag(el, node);
     this.bindResize(el, node);
     this.bindSelect(el, node);
@@ -88,6 +101,7 @@ const NodeBase = {
     if (node.type === 'html') return 'HTML';
     if (node.type === 'url') { try { return new URL(node.data.url).hostname; } catch { return 'URL'; } }
     if (node.type === 'note') return node.data.mode || 'Note';
+    if (node.type === 'group') return 'Group';
     return '';
   },
 
@@ -96,8 +110,25 @@ const NodeBase = {
     el.addEventListener('mousedown', (e) => {
       if (e.target.closest('.node-resize-handle') || e.target.closest('.node-delete')) return;
       if (e.target.closest('.node-preset-btn') || e.target.closest('.preset-submenu-item') || e.target.closest('.preset-submenu')) return;
+
+      // If node is in a group and not in group edit mode, select the group instead
+      if (node.groupId && Canvas.editingGroupId !== node.groupId) {
+        if (e.shiftKey) {
+          if (this.selectedNodeIds.has(node.groupId)) {
+            this.selectedNodeIds.delete(node.groupId);
+            const gel = document.querySelector(`.canvas-node[data-node-id="${node.groupId}"]`);
+            if (gel) gel.classList.remove('selected');
+          } else {
+            this.addToSelection(node.groupId);
+          }
+        } else {
+          if (this.selectedNodeIds.has(node.groupId) && this.selectedNodeIds.size > 1) return;
+          this.selectNode(node.groupId);
+        }
+        return;
+      }
+
       if (e.shiftKey) {
-        // Shift+click: toggle selection
         if (this.selectedNodeIds.has(node.id)) {
           this.selectedNodeIds.delete(node.id);
           el.classList.remove('selected');
@@ -106,7 +137,6 @@ const NodeBase = {
         }
         return;
       }
-      // If already part of multi-selection, don't deselect others (allow multi-drag)
       if (this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1) return;
       this.selectNode(node.id);
     });
@@ -115,6 +145,23 @@ const NodeBase = {
       el.addEventListener('dblclick', (e) => {
         e.stopPropagation();
         this.enterTextEdit(node.id);
+      });
+    }
+
+    // Double-click group to enter group edit mode
+    if (node.type === 'group') {
+      el.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        Canvas.editingGroupId = node.id;
+        el.classList.add('group-editing');
+        // Add overlay to non-group nodes
+        document.querySelectorAll('.canvas-node').forEach(nel => {
+          const nid = nel.dataset.nodeId;
+          const n = Canvas.workspace.nodes.find(nd => nd.id === nid);
+          if (n && n.groupId !== node.id && nid !== node.id) {
+            nel.classList.add('group-dimmed');
+          }
+        });
       });
     }
   },
@@ -155,6 +202,8 @@ const NodeBase = {
 
   // === TEXT EDIT ===
   enterTextEdit(nodeId) {
+    const nodeData = Canvas.workspace.nodes.find(n => n.id === nodeId);
+    if (nodeData && nodeData.locked) return;
     this.editingTextNodeId = nodeId;
     const el = document.querySelector(`.canvas-node[data-node-id="${nodeId}"]`);
     if (!el) return;
@@ -192,6 +241,7 @@ const NodeBase = {
 
     const startDrag = (e) => {
       if (e.button !== 0) return;
+      if (node.locked) return;
       if (e.target.closest('.node-delete') || e.target.closest('.node-resize-handle')) return;
       if (e.target.closest('.node-preset-btn') || e.target.closest('.preset-submenu-item') || e.target.closest('.preset-submenu')) return;
       if (e.target.closest('.node-iframe')) return;
@@ -206,20 +256,39 @@ const NodeBase = {
       startNodeY = node.y;
 
       // Record start positions for all selected nodes (for multi-drag)
-      if (this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1) {
-        dragStartPositions = [];
-        this.selectedNodeIds.forEach(id => {
+      // Include group children when dragging a group
+      const collectDragNodes = (nodeIds) => {
+        const positions = [];
+        const seen = new Set();
+        nodeIds.forEach(id => {
+          if (seen.has(id)) return;
+          seen.add(id);
           const n = Canvas.workspace.nodes.find(nd => nd.id === id);
-          if (n) dragStartPositions.push({ id: n.id, x: n.x, y: n.y });
+          if (n) {
+            positions.push({ id: n.id, x: n.x, y: n.y });
+            if (n.type === 'group' && n.data.childIds) {
+              n.data.childIds.forEach(cid => {
+                if (seen.has(cid)) return;
+                seen.add(cid);
+                const cn = Canvas.workspace.nodes.find(nd => nd.id === cid);
+                if (cn) positions.push({ id: cn.id, x: cn.x, y: cn.y });
+              });
+            }
+          }
         });
+        return positions;
+      };
+
+      if (this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1) {
+        dragStartPositions = collectDragNodes([...this.selectedNodeIds]);
       } else {
-        dragStartPositions = [{ id: node.id, x: node.x, y: node.y }];
+        dragStartPositions = collectDragNodes([node.id]);
       }
     };
 
     const header = el.querySelector('.node-header');
     if (header) header.addEventListener('mousedown', startDrag);
-    if (node.type === 'image' || node.type === 'text' || node.type === 'note') {
+    if (node.type === 'image' || node.type === 'text' || node.type === 'note' || node.type === 'group') {
       el.addEventListener('mousedown', startDrag);
     }
 
@@ -318,6 +387,7 @@ const NodeBase = {
       handle.addEventListener('mousedown', (e) => {
         e.stopPropagation();
         e.preventDefault();
+        if (node.locked) return;
         resizing = true;
         dir = handle.dataset.dir;
         startX = e.clientX;
@@ -327,8 +397,23 @@ const NodeBase = {
         startNX = node.x;
         startNY = node.y;
 
+        // Group resize: collect children for proportional scaling
+        if (node.type === 'group' && node.data.childIds) {
+          const entries = [{ id: node.id, x: node.x, y: node.y, w: node.width, h: node.height }];
+          node.data.childIds.forEach(cid => {
+            const cn = Canvas.workspace.nodes.find(nd => nd.id === cid);
+            if (cn) entries.push({ id: cn.id, x: cn.x, y: cn.y, w: cn.width, h: cn.height });
+          });
+          const bx1 = node.x, by1 = node.y;
+          const bx2 = node.x + node.width, by2 = node.y + node.height;
+          multiResizeInfo = {
+            bbox: { x: bx1, y: by1, w: bx2 - bx1, h: by2 - by1 },
+            nodes: entries,
+          };
+          resizeStartBounds = entries.map(e => ({ id: e.id, x: e.x, y: e.y, width: e.w, height: e.h }));
+        }
         // Multi-select resize
-        if (this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1) {
+        else if (this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1) {
           const entries = [];
           let bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;
           this.selectedNodeIds.forEach(id => {
@@ -461,10 +546,12 @@ const NodeBase = {
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
 
+    const isLocked = !!node.locked;
     const items = [
       { action: 'copy', label: 'コピー', shortcut: '⌘C' },
       { action: 'duplicate', label: '複製', shortcut: '⌘D' },
       { action: 'sep1', sep: true },
+      { action: 'lock', label: isLocked ? 'アンロック' : 'ロック', shortcut: '⌘L' },
       { action: 'front', label: '最前面へ' },
       { action: 'back', label: '最背面へ' },
       { action: 'sep2', sep: true },
@@ -490,7 +577,8 @@ const NodeBase = {
 
       btn.addEventListener('click', () => {
         if (item.action === 'copy') Canvas.copySelectedNode();
-        if (item.action === 'duplicate') Canvas.duplicateSelectedNode();
+        if (item.action === 'duplicate') NodeBase.duplicateSelected();
+        if (item.action === 'lock') this.toggleLock(node.id);
         if (item.action === 'front') {
           const oldZ = node.zIndex || 1;
           const maxZ = Math.max(...Canvas.workspace.nodes.map(n => n.zIndex || 1));
@@ -549,6 +637,14 @@ const NodeBase = {
   deleteNode(id, skipHistory = false) {
     const idx = Canvas.workspace.nodes.findIndex(n => n.id === id);
     if (idx === -1) return;
+    if (Canvas.workspace.nodes[idx].locked) return;
+    // Group deletion: delete children too
+    if (Canvas.workspace.nodes[idx].type === 'group' && !skipHistory) {
+      if (typeof NodeGroup !== 'undefined') {
+        NodeGroup.deleteGroup(id);
+        return;
+      }
+    }
     const node = Canvas.workspace.nodes.splice(idx, 1)[0];
     if (!skipHistory) {
       ActionHistory.push({ type: 'node-delete', node: JSON.parse(JSON.stringify(node)) });
@@ -608,6 +704,26 @@ const NodeBase = {
     }
     Canvas.scheduleSave();
     return node;
+  },
+
+  toggleLock(nodeId) {
+    const node = Canvas.workspace.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const wasLocked = !!node.locked;
+    node.locked = !wasLocked;
+    ActionHistory.push({ type: 'node-lock', nodeId, before: wasLocked, after: node.locked });
+    // Re-render to update lock visuals
+    const el = document.querySelector(`.canvas-node[data-node-id="${nodeId}"]`);
+    if (el) {
+      el.remove();
+      Canvas.renderNode(node);
+      this.selectNode(nodeId);
+    }
+    Canvas.scheduleSave();
+  },
+
+  toggleLockSelected() {
+    this.selectedNodeIds.forEach(id => this.toggleLock(id));
   },
 
   showTextStyleUI(nodeId) {

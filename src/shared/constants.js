@@ -16,6 +16,8 @@ const IPC = {
   HTML_HAS_SNAPSHOT: 'html:has-snapshot',
   HTML_DELETE_SNAPSHOT: 'html:delete-snapshot',
   WORKSPACE_DUPLICATE: 'workspace:duplicate',
+  FILE_COPY_ASSETS_BETWEEN: 'file:copy-assets-between',
+  FILE_COPY_SNAPSHOT_BETWEEN: 'file:copy-snapshot-between',
   WORKSPACE_EXPORT: 'workspace:export',
   WORKSPACE_IMPORT: 'workspace:import',
 };

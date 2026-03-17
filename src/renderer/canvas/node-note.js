@@ -42,6 +42,7 @@ const NodeNote = {
       ? 'プロンプトを入力...'
       : 'コンテキストを入力...';
     textarea.spellcheck = false;
+    if (node.locked) textarea.readOnly = true;
 
     textarea.addEventListener('input', () => {
       node.data.content = textarea.value;

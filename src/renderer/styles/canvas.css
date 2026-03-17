@@ -313,6 +313,50 @@
   pointer-events: none;
 }
 
+/* Group Node */
+.canvas-node-group {
+  background: transparent;
+  border: 2px dashed rgba(74, 158, 255, 0.3);
+  box-shadow: none;
+  border-radius: var(--radius-m);
+  overflow: visible;
+}
+
+.canvas-node-group.selected {
+  border-color: #4a9eff;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.canvas-node-group.group-editing {
+  border-color: #4a9eff;
+  border-style: solid;
+}
+
+.canvas-node.group-dimmed {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Locked Node */
+.canvas-node.locked {
+  opacity: 0.8;
+}
+
+.canvas-node.locked .node-resize-handle {
+  display: none !important;
+}
+
+.node-lock-icon {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 11px;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 11;
+}
+
 /* Smart Guide Lines */
 .smart-guide {
   position: absolute;

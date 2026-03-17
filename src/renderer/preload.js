@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('api', {
     copyHtmlDir: (workspaceId, path) => ipcRenderer.invoke('file:copy-html-dir', workspaceId, path),
     pickImage: (workspaceId) => ipcRenderer.invoke('file:pick-image', workspaceId),
     pickHtml: () => ipcRenderer.invoke('file:pick-html'),
+    copyAssetsBetween: (srcWs, dstWs, nodeType, dataNodeId, canvasNodeId) =>
+      ipcRenderer.invoke('file:copy-assets-between', srcWs, dstWs, nodeType, dataNodeId, canvasNodeId),
+    copySnapshotBetween: (srcWs, dstWs, srcNodeId, dstNodeId) =>
+      ipcRenderer.invoke('file:copy-snapshot-between', srcWs, dstWs, srcNodeId, dstNodeId),
   },
   html: {
     saveSnapshots: (workspaceId, snapshotsMap) => ipcRenderer.invoke('html:save-snapshots', workspaceId, snapshotsMap),

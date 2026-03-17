@@ -8,6 +8,7 @@ const Canvas = {
   lastMouse: { x: 0, y: 0 },
   saveTimeout: null,
   clipboard: null,
+  editingGroupId: null,
 
   async load(id) {
     this.workspace = await window.api.workspace.load(id);
@@ -36,6 +37,7 @@ const Canvas = {
     document.getElementById('canvas-container').innerHTML = '';
     NodeBase.selectedNodeIds.clear();
     ActionHistory.clear();
+    this.editingGroupId = null;
   },
 
   renderAllNodes() {
@@ -56,6 +58,7 @@ const Canvas = {
       case 'html': if (typeof NodeHtml !== 'undefined') NodeHtml.render(node, contentEl); break;
       case 'url': if (typeof NodeUrl !== 'undefined') NodeUrl.render(node, contentEl); break;
       case 'note': if (typeof NodeNote !== 'undefined') NodeNote.render(node, contentEl); break;
+      case 'group': if (typeof NodeGroup !== 'undefined') NodeGroup.render(node, contentEl); break;
     }
 
     container.appendChild(el);
@@ -88,28 +91,59 @@ const Canvas = {
   // Copy/Paste/Duplicate
   copySelectedNode() {
     if (NodeBase.selectedNodeIds.size === 0) return;
-    this.clipboard = [];
+    const nodes = [];
     NodeBase.selectedNodeIds.forEach(id => {
       const node = this.workspace.nodes.find(n => n.id === id);
-      if (node) this.clipboard.push(JSON.parse(JSON.stringify(node)));
+      if (node) nodes.push(JSON.parse(JSON.stringify(node)));
     });
+    this.clipboard = {
+      sourceWorkspaceId: this.workspace.id,
+      nodes,
+    };
   },
 
-  pasteNode() {
-    if (!this.clipboard || this.clipboard.length === 0) return;
+  async pasteNode() {
+    if (!this.clipboard || !this.clipboard.nodes || this.clipboard.nodes.length === 0) return;
+    const isCrossWorkspace = this.clipboard.sourceWorkspaceId !== this.workspace.id;
     NodeBase.deselectAll();
-    this.clipboard.forEach(orig => {
+
+    for (const orig of this.clipboard.nodes) {
       const copy = JSON.parse(JSON.stringify(orig));
+      const oldId = copy.id;
       copy.id = crypto.randomUUID();
       copy.x += 30;
       copy.y += 30;
       const maxZ = this.workspace.nodes.length > 0
         ? Math.max(...this.workspace.nodes.map(n => n.zIndex || 1)) : 0;
       copy.zIndex = maxZ + 1;
+
+      // Cross-workspace: copy assets
+      if (isCrossWorkspace && (copy.type === 'image' || copy.type === 'html')) {
+        try {
+          await window.api.file.copyAssetsBetween(
+            this.clipboard.sourceWorkspaceId, this.workspace.id,
+            copy.type, copy.data.nodeId || '', oldId
+          );
+        } catch (e) {
+          console.error('[ProtoGarden] Asset copy error:', e);
+        }
+      }
+      // Cross-workspace: copy snapshot
+      if (isCrossWorkspace && copy.type === 'html') {
+        try {
+          await window.api.file.copySnapshotBetween(
+            this.clipboard.sourceWorkspaceId, this.workspace.id,
+            oldId, copy.id
+          );
+        } catch (e) {
+          // Snapshot may not exist, that's OK
+        }
+      }
+
       this.workspace.nodes.push(copy);
       this.renderNode(copy);
       NodeBase.addToSelection(copy.id);
-    });
+    }
     this.scheduleSave();
   },
 
@@ -127,8 +161,13 @@ const Canvas = {
       if (e.target.closest('.canvas-node') || e.target.closest('.node-context-menu') || e.target.closest('.text-style-popup')) return;
 
       if (e.button === 0 && !this.spaceHeld) {
+        // Exit group edit mode on click outside
+        if (this.editingGroupId) {
+          this.editingGroupId = null;
+          document.querySelectorAll('.group-editing').forEach(el => el.classList.remove('group-editing'));
+          document.querySelectorAll('.group-dimmed').forEach(el => el.classList.remove('group-dimmed'));
+        }
         NodeBase.deselectAll();
-        // Start marquee selection
         marqueeStart = { x: e.clientX, y: e.clientY };
       }
 
@@ -268,6 +307,26 @@ const Canvas = {
         this.copySelectedNode();
       }
 
+      // Cmd+G group / Cmd+Shift+G ungroup
+      if (e.key === 'g' && (e.metaKey || e.ctrlKey) && !isEditing) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (typeof NodeGroup !== 'undefined') NodeGroup.ungroupSelected();
+        } else {
+          if (typeof NodeGroup !== 'undefined' && NodeBase.selectedNodeIds.size >= 2) {
+            NodeGroup.createGroup();
+          }
+        }
+      }
+
+      // Cmd+L lock/unlock
+      if (e.key === 'l' && (e.metaKey || e.ctrlKey) && !isEditing) {
+        if (NodeBase.selectedNodeIds.size > 0) {
+          e.preventDefault();
+          NodeBase.toggleLockSelected();
+        }
+      }
+
       // Cmd+D duplicate
       if (e.key === 'd' && (e.metaKey || e.ctrlKey) && !isEditing) {
         if (NodeBase.selectedNodeIds.size > 0) {
@@ -303,7 +362,7 @@ const Canvas = {
       }
 
       // No image in clipboard → paste copied nodes
-      if (this.clipboard && this.clipboard.length > 0) {
+      if (this.clipboard && this.clipboard.nodes && this.clipboard.nodes.length > 0) {
         e.preventDefault();
         this.pasteNode();
       }
