@@ -374,7 +374,7 @@
   background: #5bb8f5;
   border: 2px solid #fff;
   border-radius: 50%;
-  z-index: 12;
+  z-index: 15;
   cursor: crosshair;
   opacity: 0;
   transition: opacity 0.15s ease, transform 0.15s ease;
