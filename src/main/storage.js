@@ -98,6 +98,44 @@ function saveWorkspace(data) {
   fs.renameSync(tmpPath, filePath);
 }
 
+function duplicateWorkspace(id) {
+  const storagePath = getStoragePath();
+  if (!storagePath) throw new Error('Storage path not set');
+  const srcData = loadWorkspace(id);
+  const newId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  // Remap node IDs
+  const idMap = {};
+  srcData.nodes.forEach(node => {
+    const newNodeId = crypto.randomUUID();
+    idMap[node.id] = newNodeId;
+  });
+
+  const newData = JSON.parse(JSON.stringify(srcData));
+  newData.id = newId;
+  newData.name = `${srcData.name} (copy)`;
+  newData.createdAt = now;
+  newData.updatedAt = now;
+  newData.nodes.forEach(node => {
+    const oldId = node.id;
+    node.id = idMap[oldId] || crypto.randomUUID();
+    // Update asset references (HTML nodeId, image nodeId)
+    if (node.data && node.data.nodeId && idMap[node.data.nodeId]) {
+      // Don't remap data.nodeId for assets - they reference the copied directory
+    }
+  });
+
+  const filePath = path.join(storagePath, 'workspaces', `${newId}.json`);
+  fs.writeFileSync(filePath, JSON.stringify(newData, null, 2));
+
+  // Copy assets
+  const fileManager = require('./file-manager');
+  fileManager.copyWorkspaceAssets(id, newId);
+
+  return { id: newId, name: newData.name, createdAt: now, updatedAt: now };
+}
+
 module.exports = {
   getStoragePath,
   setStoragePath,
@@ -107,4 +145,5 @@ module.exports = {
   deleteWorkspace,
   loadWorkspace,
   saveWorkspace,
+  duplicateWorkspace,
 };

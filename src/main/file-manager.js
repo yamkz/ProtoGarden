@@ -38,4 +38,14 @@ function copyDirSync(src, dest) {
   }
 }
 
-module.exports = { saveImage, copyHtmlDir };
+function copyWorkspaceAssets(srcWorkspaceId, dstWorkspaceId) {
+  const storagePath = storage.getStoragePath();
+  const srcDir = path.join(storagePath, 'assets', srcWorkspaceId);
+  const dstDir = path.join(storagePath, 'assets', dstWorkspaceId);
+  if (fs.existsSync(srcDir)) {
+    fs.mkdirSync(dstDir, { recursive: true });
+    copyDirSync(srcDir, dstDir);
+  }
+}
+
+module.exports = { saveImage, copyHtmlDir, copyDirSync, copyWorkspaceAssets };

@@ -31,9 +31,24 @@ const NodeText = {
     editable.innerHTML = node.data.content || '';
     editable.setAttribute('placeholder', 'テキストを入力...');
 
+    let textBeforeEdit = node.data.content || '';
+    editable.addEventListener('focus', () => {
+      textBeforeEdit = node.data.content || '';
+    });
     editable.addEventListener('input', () => {
       node.data.content = editable.innerHTML;
       Canvas.scheduleSave();
+    });
+    editable.addEventListener('blur', () => {
+      const after = node.data.content || '';
+      if (textBeforeEdit !== after) {
+        ActionHistory.push({
+          type: 'node-edit',
+          nodeId: node.id,
+          before: { content: textBeforeEdit },
+          after: { content: after },
+        });
+      }
     });
 
     // Cmd+A in text edit mode: show style UI

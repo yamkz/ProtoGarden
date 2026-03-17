@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('api', {
     delete: (id) => ipcRenderer.invoke('workspace:delete', id),
     load: (id) => ipcRenderer.invoke('workspace:load', id),
     save: (data) => ipcRenderer.invoke('workspace:save', data),
+    duplicate: (id) => ipcRenderer.invoke('workspace:duplicate', id),
+    export: (id) => ipcRenderer.invoke('workspace:export', id),
+    import: () => ipcRenderer.invoke('workspace:import'),
   },
   file: {
     saveImage: (workspaceId, buffer, ext) => ipcRenderer.invoke('file:save-image', workspaceId, buffer, ext),

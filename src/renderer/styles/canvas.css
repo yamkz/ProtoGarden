@@ -313,6 +313,14 @@
   pointer-events: none;
 }
 
+/* Smart Guide Lines */
+.smart-guide {
+  position: absolute;
+  background: #ff3366;
+  pointer-events: none;
+  z-index: 99990;
+}
+
 /* Marquee selection box */
 .marquee-selection {
   position: fixed;

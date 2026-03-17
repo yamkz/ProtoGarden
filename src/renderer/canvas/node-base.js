@@ -1,6 +1,4 @@
 const NodeBase = {
-  deleteHistory: [],
-  MAX_UNDO: 10,
   selectedNodeIds: new Set(),
   editingTextNodeId: null,
   _contextMenu: null,
@@ -98,6 +96,18 @@ const NodeBase = {
     el.addEventListener('mousedown', (e) => {
       if (e.target.closest('.node-resize-handle') || e.target.closest('.node-delete')) return;
       if (e.target.closest('.node-preset-btn') || e.target.closest('.preset-submenu-item') || e.target.closest('.preset-submenu')) return;
+      if (e.shiftKey) {
+        // Shift+click: toggle selection
+        if (this.selectedNodeIds.has(node.id)) {
+          this.selectedNodeIds.delete(node.id);
+          el.classList.remove('selected');
+        } else {
+          this.addToSelection(node.id);
+        }
+        return;
+      }
+      // If already part of multi-selection, don't deselect others (allow multi-drag)
+      if (this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1) return;
       this.selectNode(node.id);
     });
 
@@ -178,6 +188,7 @@ const NodeBase = {
   // === DRAG ===
   bindDrag(el, node) {
     let startX, startY, startNodeX, startNodeY, dragReady = false, dragging = false;
+    let dragStartPositions = null;
 
     const startDrag = (e) => {
       if (e.button !== 0) return;
@@ -187,13 +198,23 @@ const NodeBase = {
       if (e.target.closest('.note-textarea') || e.target.closest('.note-mode-btn') || e.target.closest('.note-model-btn') || e.target.closest('.note-run-btn')) return;
       if (node.type === 'text' && this.editingTextNodeId === node.id) return;
       e.stopPropagation();
-      // Don't start actual drag yet - wait for mousemove (to allow dblclick)
       dragReady = true;
       dragging = false;
       startX = e.clientX;
       startY = e.clientY;
       startNodeX = node.x;
       startNodeY = node.y;
+
+      // Record start positions for all selected nodes (for multi-drag)
+      if (this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1) {
+        dragStartPositions = [];
+        this.selectedNodeIds.forEach(id => {
+          const n = Canvas.workspace.nodes.find(nd => nd.id === id);
+          if (n) dragStartPositions.push({ id: n.id, x: n.x, y: n.y });
+        });
+      } else {
+        dragStartPositions = [{ id: node.id, x: node.x, y: node.y }];
+      }
     };
 
     const header = el.querySelector('.node-header');
@@ -204,7 +225,6 @@ const NodeBase = {
 
     window.addEventListener('mousemove', (e) => {
       if (!dragReady) return;
-      // Only start actual drag after mouse moves > 3px (prevents blocking dblclick)
       if (!dragging) {
         const dist = Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY);
         if (dist < 3) return;
@@ -214,10 +234,49 @@ const NodeBase = {
       }
       const dx = (e.clientX - startX) / Canvas.zoom;
       const dy = (e.clientY - startY) / Canvas.zoom;
-      node.x = startNodeX + dx;
-      node.y = startNodeY + dy;
-      el.style.left = `${node.x}px`;
-      el.style.top = `${node.y}px`;
+
+      // Multi-select drag: move all selected nodes
+      const isMulti = this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1 && dragStartPositions;
+      if (isMulti) {
+        // Compute bounding box of all dragged nodes
+        let bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;
+        dragStartPositions.forEach(sp => {
+          const n = Canvas.workspace.nodes.find(nd => nd.id === sp.id);
+          if (!n) return;
+          bx1 = Math.min(bx1, sp.x + dx);
+          by1 = Math.min(by1, sp.y + dy);
+          bx2 = Math.max(bx2, sp.x + dx + n.width);
+          by2 = Math.max(by2, sp.y + dy + n.height);
+        });
+        const excludeIds = dragStartPositions.map(sp => sp.id);
+        const snap = SmartGuide.calculate({ x: bx1, y: by1, width: bx2 - bx1, height: by2 - by1 }, excludeIds);
+        const sdx = snap.snapX || 0;
+        const sdy = snap.snapY || 0;
+        if (snap.guides.length > 0) SmartGuide.showGuides(snap.guides);
+        else SmartGuide.clearGuides();
+
+        dragStartPositions.forEach(sp => {
+          const n = Canvas.workspace.nodes.find(nd => nd.id === sp.id);
+          if (!n) return;
+          n.x = sp.x + dx + sdx;
+          n.y = sp.y + dy + sdy;
+          const nel = document.querySelector(`.canvas-node[data-node-id="${sp.id}"]`);
+          if (nel) {
+            nel.style.left = `${n.x}px`;
+            nel.style.top = `${n.y}px`;
+          }
+        });
+      } else {
+        const rawX = startNodeX + dx;
+        const rawY = startNodeY + dy;
+        const snap = SmartGuide.calculate({ x: rawX, y: rawY, width: node.width, height: node.height }, [node.id]);
+        node.x = rawX + (snap.snapX || 0);
+        node.y = rawY + (snap.snapY || 0);
+        el.style.left = `${node.x}px`;
+        el.style.top = `${node.y}px`;
+        if (snap.guides.length > 0) SmartGuide.showGuides(snap.guides);
+        else SmartGuide.clearGuides();
+      }
     });
 
     window.addEventListener('mouseup', () => {
@@ -227,6 +286,24 @@ const NodeBase = {
       dragging = false;
       el.classList.remove('dragging');
       this.unblockIframes();
+      SmartGuide.clearGuides();
+
+      // Record move action for undo
+      if (dragStartPositions) {
+        const afterPositions = dragStartPositions.map(sp => {
+          const n = Canvas.workspace.nodes.find(nd => nd.id === sp.id);
+          return { id: sp.id, x: n ? n.x : sp.x, y: n ? n.y : sp.y };
+        });
+        const moved = dragStartPositions.some((sp, i) => sp.x !== afterPositions[i].x || sp.y !== afterPositions[i].y);
+        if (moved) {
+          ActionHistory.push({
+            type: 'node-move',
+            before: dragStartPositions,
+            after: afterPositions,
+          });
+        }
+      }
+      dragStartPositions = null;
       Canvas.scheduleSave();
     });
   },
@@ -234,6 +311,8 @@ const NodeBase = {
   // === RESIZE ===
   bindResize(el, node) {
     let startX, startY, startW, startH, startNX, startNY, dir, resizing = false;
+    let resizeStartBounds = null;
+    let multiResizeInfo = null; // { bbox, nodes: [{ id, x, y, w, h }] }
 
     el.querySelectorAll('.node-resize-handle').forEach(handle => {
       handle.addEventListener('mousedown', (e) => {
@@ -247,6 +326,30 @@ const NodeBase = {
         startH = node.height;
         startNX = node.x;
         startNY = node.y;
+
+        // Multi-select resize
+        if (this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1) {
+          const entries = [];
+          let bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;
+          this.selectedNodeIds.forEach(id => {
+            const n = Canvas.workspace.nodes.find(nd => nd.id === id);
+            if (!n) return;
+            entries.push({ id: n.id, x: n.x, y: n.y, w: n.width, h: n.height });
+            bx1 = Math.min(bx1, n.x);
+            by1 = Math.min(by1, n.y);
+            bx2 = Math.max(bx2, n.x + n.width);
+            by2 = Math.max(by2, n.y + n.height);
+          });
+          multiResizeInfo = {
+            bbox: { x: bx1, y: by1, w: bx2 - bx1, h: by2 - by1 },
+            nodes: entries,
+          };
+          resizeStartBounds = entries.map(e => ({ id: e.id, x: e.x, y: e.y, width: e.w, height: e.h }));
+        } else {
+          multiResizeInfo = null;
+          resizeStartBounds = [{ id: node.id, x: node.x, y: node.y, width: node.width, height: node.height }];
+        }
+
         el.classList.add('resizing');
         this.blockIframes();
       });
@@ -257,14 +360,58 @@ const NodeBase = {
       const dx = (e.clientX - startX) / Canvas.zoom;
       const dy = (e.clientY - startY) / Canvas.zoom;
       const minW = 40, minH = 20;
-      if (dir.includes('e')) node.width = Math.max(minW, startW + dx);
-      if (dir.includes('s')) node.height = Math.max(minH, startH + dy);
-      if (dir.includes('w')) { const nw = Math.max(minW, startW - dx); node.x = startNX + (startW - nw); node.width = nw; }
-      if (dir.includes('n')) { const nh = Math.max(minH, startH - dy); node.y = startNY + (startH - nh); node.height = nh; }
-      el.style.left = `${node.x}px`;
-      el.style.top = `${node.y}px`;
-      el.style.width = `${node.width}px`;
-      el.style.height = `${node.height}px`;
+
+      if (multiResizeInfo) {
+        // Proportional multi-resize based on bounding box
+        const bb = multiResizeInfo.bbox;
+        let newBBw = bb.w, newBBh = bb.h, newBBx = bb.x, newBBy = bb.y;
+        if (dir.includes('e')) newBBw = Math.max(minW, bb.w + dx);
+        if (dir.includes('s')) newBBh = Math.max(minH, bb.h + dy);
+        if (dir.includes('w')) { const nw = Math.max(minW, bb.w - dx); newBBx = bb.x + (bb.w - nw); newBBw = nw; }
+        if (dir.includes('n')) { const nh = Math.max(minH, bb.h - dy); newBBy = bb.y + (bb.h - nh); newBBh = nh; }
+        const sx = newBBw / bb.w;
+        const sy = newBBh / bb.h;
+        multiResizeInfo.nodes.forEach(entry => {
+          const n = Canvas.workspace.nodes.find(nd => nd.id === entry.id);
+          if (!n) return;
+          n.x = newBBx + (entry.x - bb.x) * sx;
+          n.y = newBBy + (entry.y - bb.y) * sy;
+          n.width = Math.max(minW, entry.w * sx);
+          n.height = Math.max(minH, entry.h * sy);
+          const nel = document.querySelector(`.canvas-node[data-node-id="${entry.id}"]`);
+          if (nel) {
+            nel.style.left = `${n.x}px`;
+            nel.style.top = `${n.y}px`;
+            nel.style.width = `${n.width}px`;
+            nel.style.height = `${n.height}px`;
+          }
+        });
+      } else {
+        // Single node resize with snap
+        let rawX = startNX, rawY = startNY, rawW = startW, rawH = startH;
+        if (dir.includes('e')) rawW = Math.max(minW, startW + dx);
+        if (dir.includes('s')) rawH = Math.max(minH, startH + dy);
+        if (dir.includes('w')) { const nw = Math.max(minW, startW - dx); rawX = startNX + (startW - nw); rawW = nw; }
+        if (dir.includes('n')) { const nh = Math.max(minH, startH - dy); rawY = startNY + (startH - nh); rawH = nh; }
+
+        const snap = SmartGuide.calculate({ x: rawX, y: rawY, width: rawW, height: rawH }, [node.id]);
+        // Apply snap only to the edges being resized
+        if (snap.snapX !== null) {
+          if (dir.includes('e')) rawW += snap.snapX;
+          else if (dir.includes('w')) { rawX += snap.snapX; rawW -= snap.snapX; }
+        }
+        if (snap.snapY !== null) {
+          if (dir.includes('s')) rawH += snap.snapY;
+          else if (dir.includes('n')) { rawY += snap.snapY; rawH -= snap.snapY; }
+        }
+        node.x = rawX; node.y = rawY; node.width = rawW; node.height = rawH;
+        el.style.left = `${node.x}px`;
+        el.style.top = `${node.y}px`;
+        el.style.width = `${node.width}px`;
+        el.style.height = `${node.height}px`;
+        if (snap.guides.length > 0) SmartGuide.showGuides(snap.guides);
+        else SmartGuide.clearGuides();
+      }
     });
 
     window.addEventListener('mouseup', () => {
@@ -272,6 +419,26 @@ const NodeBase = {
       resizing = false;
       el.classList.remove('resizing');
       this.unblockIframes();
+      SmartGuide.clearGuides();
+      if (resizeStartBounds) {
+        const afterBounds = resizeStartBounds.map(sb => {
+          const n = Canvas.workspace.nodes.find(nd => nd.id === sb.id);
+          return n ? { id: n.id, x: n.x, y: n.y, width: n.width, height: n.height } : sb;
+        });
+        const changed = resizeStartBounds.some((sb, i) =>
+          sb.width !== afterBounds[i].width || sb.height !== afterBounds[i].height ||
+          sb.x !== afterBounds[i].x || sb.y !== afterBounds[i].y
+        );
+        if (changed) {
+          ActionHistory.push({
+            type: 'node-resize',
+            before: resizeStartBounds,
+            after: afterBounds,
+          });
+        }
+        resizeStartBounds = null;
+      }
+      multiResizeInfo = null;
       Canvas.scheduleSave();
     });
   },
@@ -325,14 +492,18 @@ const NodeBase = {
         if (item.action === 'copy') Canvas.copySelectedNode();
         if (item.action === 'duplicate') Canvas.duplicateSelectedNode();
         if (item.action === 'front') {
+          const oldZ = node.zIndex || 1;
           const maxZ = Math.max(...Canvas.workspace.nodes.map(n => n.zIndex || 1));
           node.zIndex = maxZ + 1;
+          ActionHistory.push({ type: 'node-zindex', nodeId: node.id, before: oldZ, after: node.zIndex });
           document.querySelector(`.canvas-node[data-node-id="${node.id}"]`).style.zIndex = node.zIndex;
           Canvas.scheduleSave();
         }
         if (item.action === 'back') {
+          const oldZ = node.zIndex || 1;
           const minZ = Math.min(...Canvas.workspace.nodes.map(n => n.zIndex || 1));
           node.zIndex = minZ - 1;
+          ActionHistory.push({ type: 'node-zindex', nodeId: node.id, before: oldZ, after: node.zIndex });
           document.querySelector(`.canvas-node[data-node-id="${node.id}"]`).style.zIndex = node.zIndex;
           Canvas.scheduleSave();
         }
@@ -375,12 +546,13 @@ const NodeBase = {
   },
 
   // === DELETE / UNDO / ADD ===
-  deleteNode(id) {
+  deleteNode(id, skipHistory = false) {
     const idx = Canvas.workspace.nodes.findIndex(n => n.id === id);
     if (idx === -1) return;
     const node = Canvas.workspace.nodes.splice(idx, 1)[0];
-    this.deleteHistory.push(node);
-    if (this.deleteHistory.length > this.MAX_UNDO) this.deleteHistory.shift();
+    if (!skipHistory) {
+      ActionHistory.push({ type: 'node-delete', node: JSON.parse(JSON.stringify(node)) });
+    }
     document.querySelector(`.canvas-node[data-node-id="${id}"]`)?.remove();
     this.selectedNodeIds.delete(id);
     if (this.editingTextNodeId === id) this.editingTextNodeId = null;
@@ -389,15 +561,16 @@ const NodeBase = {
 
   deleteSelected() {
     const ids = [...this.selectedNodeIds];
-    ids.forEach(id => this.deleteNode(id));
-  },
-
-  undoDelete() {
-    if (this.deleteHistory.length === 0) return;
-    const node = this.deleteHistory.pop();
-    Canvas.workspace.nodes.push(node);
-    Canvas.renderNode(node);
-    Canvas.scheduleSave();
+    if (ids.length > 1) {
+      const nodes = ids.map(id => {
+        const node = Canvas.workspace.nodes.find(n => n.id === id);
+        return node ? JSON.parse(JSON.stringify(node)) : null;
+      }).filter(Boolean);
+      ActionHistory.push({ type: 'multi-node-delete', nodes });
+      ids.forEach(id => this.deleteNode(id, true));
+    } else {
+      ids.forEach(id => this.deleteNode(id));
+    }
   },
 
   duplicateSelected() {
@@ -414,15 +587,15 @@ const NodeBase = {
       copy.zIndex = maxZ + 1;
       Canvas.workspace.nodes.push(copy);
       Canvas.renderNode(copy);
+      ActionHistory.push({ type: 'node-add', node: JSON.parse(JSON.stringify(copy)) });
       newIds.push(copy.id);
     });
-    // Select the new copies
     this.deselectAll();
     newIds.forEach(id => this.addToSelection(id));
     Canvas.scheduleSave();
   },
 
-  addNode(type, data, x, y, width, height) {
+  addNode(type, data, x, y, width, height, skipHistory = false) {
     const id = crypto.randomUUID();
     const maxZ = Canvas.workspace.nodes.length > 0
       ? Math.max(...Canvas.workspace.nodes.map(n => n.zIndex || 1)) : 0;
@@ -430,6 +603,9 @@ const NodeBase = {
     Canvas.workspace.nodes.push(node);
     Canvas.renderNode(node);
     this.selectNode(id);
+    if (!skipHistory) {
+      ActionHistory.push({ type: 'node-add', node: JSON.parse(JSON.stringify(node)) });
+    }
     Canvas.scheduleSave();
     return node;
   },

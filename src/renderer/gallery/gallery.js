@@ -18,6 +18,8 @@ const Gallery = {
         <div class="workspace-name">${this.escapeHtml(ws.name)}</div>
         <div class="workspace-meta">${this.formatDate(ws.updatedAt)}</div>
         <div class="workspace-card-actions">
+          <button class="btn-card-action" data-action="duplicate" data-id="${ws.id}" title="複製">&#9114;</button>
+          <button class="btn-card-action" data-action="export" data-id="${ws.id}" title="エクスポート">&#8615;</button>
           <button class="btn-card-action" data-action="rename" data-id="${ws.id}" title="名前を変更">&#9998;</button>
           <button class="btn-card-action danger" data-action="delete" data-id="${ws.id}" title="削除">&#10005;</button>
         </div>
@@ -28,6 +30,21 @@ const Gallery = {
       card.addEventListener('click', (e) => {
         if (e.target.closest('.btn-card-action')) return;
         App.openWorkspace(card.dataset.id);
+      });
+    });
+
+    grid.querySelectorAll('[data-action="duplicate"]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await window.api.workspace.duplicate(btn.dataset.id);
+        this.refresh();
+      });
+    });
+
+    grid.querySelectorAll('[data-action="export"]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await window.api.workspace.export(btn.dataset.id);
       });
     });
 
@@ -92,6 +109,11 @@ const Gallery = {
     return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
   },
 };
+
+document.getElementById('btn-import-workspace').addEventListener('click', async () => {
+  const result = await window.api.workspace.import();
+  if (result) Gallery.refresh();
+});
 
 document.getElementById('btn-new-workspace').addEventListener('click', async () => {
   const name = await App.showPrompt('新規ワークスペース', 'ワークスペース名を入力', '作成');

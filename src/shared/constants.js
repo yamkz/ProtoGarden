@@ -15,6 +15,9 @@ const IPC = {
   HTML_SAVE_SNAPSHOTS: 'html:save-snapshots',
   HTML_HAS_SNAPSHOT: 'html:has-snapshot',
   HTML_DELETE_SNAPSHOT: 'html:delete-snapshot',
+  WORKSPACE_DUPLICATE: 'workspace:duplicate',
+  WORKSPACE_EXPORT: 'workspace:export',
+  WORKSPACE_IMPORT: 'workspace:import',
 };
 
 if (typeof module !== 'undefined') {

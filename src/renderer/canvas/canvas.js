@@ -35,6 +35,7 @@ const Canvas = {
     this.unbindEvents();
     document.getElementById('canvas-container').innerHTML = '';
     NodeBase.selectedNodeIds.clear();
+    ActionHistory.clear();
   },
 
   renderAllNodes() {
@@ -252,10 +253,14 @@ const Canvas = {
         NodeBase.deleteSelected();
       }
 
-      // Cmd+Z undo delete
-      if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isEditing) {
-        NodeBase.undoDelete();
+      // Cmd+Z undo / Cmd+Shift+Z redo
+      if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !isEditing) {
         e.preventDefault();
+        if (e.shiftKey) {
+          ActionHistory.redo();
+        } else {
+          ActionHistory.undo();
+        }
       }
 
       // Cmd+C copy

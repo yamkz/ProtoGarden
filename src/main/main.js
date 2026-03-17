@@ -79,7 +79,16 @@ function buildMenu() {
           accelerator: 'CmdOrCtrl+Z',
           click: () => {
             if (mainWindow) mainWindow.webContents.executeJavaScript(
-              'typeof NodeBase !== "undefined" && NodeBase.undoDelete()'
+              'typeof ActionHistory !== "undefined" && ActionHistory.undo()'
+            );
+          },
+        },
+        {
+          label: 'やり直す',
+          accelerator: 'CmdOrCtrl+Shift+Z',
+          click: () => {
+            if (mainWindow) mainWindow.webContents.executeJavaScript(
+              'typeof ActionHistory !== "undefined" && ActionHistory.redo()'
             );
           },
         },
