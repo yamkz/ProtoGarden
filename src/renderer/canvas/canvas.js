@@ -310,6 +310,14 @@ const Canvas = {
         this.copySelectedNode();
       }
 
+      // Cmd+V paste nodes (internal clipboard)
+      if (e.key === 'v' && (e.metaKey || e.ctrlKey) && !isEditing) {
+        if (this.clipboard && this.clipboard.nodes && this.clipboard.nodes.length > 0) {
+          e.preventDefault();
+          this.pasteNode();
+        }
+      }
+
       // Cmd+G group / Cmd+Shift+G ungroup
       if (e.key === 'g' && (e.metaKey || e.ctrlKey) && !isEditing) {
         e.preventDefault();
@@ -346,20 +354,12 @@ const Canvas = {
       }
     };
 
-    // Paste: internal node clipboard takes priority, then system clipboard images
+    // Paste: system clipboard images only (node paste is handled in keydown Cmd+V)
     this._handlers.paste = async (e) => {
       if (App.currentView !== 'canvas') return;
       if (e.target.closest('.modal-input') || e.target.closest('input') || e.target.closest('textarea')) return;
       if (NodeBase.editingTextNodeId) return;
 
-      // Internal node clipboard takes priority
-      if (this.clipboard && this.clipboard.nodes && this.clipboard.nodes.length > 0) {
-        e.preventDefault();
-        this.pasteNode();
-        return;
-      }
-
-      // Fallback: system clipboard images
       const items = e.clipboardData?.items;
       if (items) {
         for (const item of items) {
