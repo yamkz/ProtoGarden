@@ -237,13 +237,21 @@ const ConnectionManager = {
     const node = Canvas.workspace.nodes.find(n => n.id === nodeId);
     if (!node) return;
 
+    // Ensure SVG is in the DOM
+    if (!this.svgEl || !this.svgEl.parentNode) {
+      this.init();
+    }
+
+    const srcPos = this.getPortPosition(node, port);
     const preview = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     preview.setAttribute('class', 'connection-preview');
     preview.setAttribute('fill', 'none');
-    preview.setAttribute('stroke', 'rgba(74, 158, 255, 0.6)');
-    preview.setAttribute('stroke-width', '2');
+    preview.setAttribute('stroke', 'rgba(74, 158, 255, 0.7)');
+    preview.setAttribute('stroke-width', '2.5');
     preview.setAttribute('stroke-dasharray', '6 4');
     preview.setAttribute('marker-end', 'url(#arrowhead)');
+    // Set initial path at source position
+    preview.setAttribute('d', `M ${srcPos.x} ${srcPos.y} L ${srcPos.x} ${srcPos.y}`);
     this.svgEl.appendChild(preview);
     this._dragging.previewPath = preview;
     this._dragging.snapTarget = null;

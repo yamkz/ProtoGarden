@@ -85,26 +85,7 @@ const NodeBase = {
       const dot = document.createElement('div');
       dot.className = `connection-port connection-port-${port}`;
       dot.dataset.port = port;
-      dot.addEventListener('mousedown', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        if (node.locked) return;
-        if (typeof ConnectionManager !== 'undefined') {
-          ConnectionManager.startDrag(node.id, port, e.clientX, e.clientY);
-
-          const onMove = (ev) => {
-            const pos = Canvas.screenToCanvas(ev.clientX, ev.clientY);
-            ConnectionManager.updateDrag(pos.x, pos.y);
-          };
-          const onUp = () => {
-            ConnectionManager.endDrag();
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-          };
-          window.addEventListener('mousemove', onMove);
-          window.addEventListener('mouseup', onUp);
-        }
-      });
+      dot.dataset.nodeId = node.id;
       el.appendChild(dot);
     });
 
@@ -136,7 +117,7 @@ const NodeBase = {
   // === SELECTION ===
   bindSelect(el, node) {
     el.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.node-resize-handle') || e.target.closest('.node-delete')) return;
+      if (e.target.closest('.node-resize-handle') || e.target.closest('.node-delete') || e.target.closest('.connection-port')) return;
       if (e.target.closest('.node-preset-btn') || e.target.closest('.preset-submenu-item') || e.target.closest('.preset-submenu')) return;
 
       // If node is in a group and not in group edit mode, select the group instead

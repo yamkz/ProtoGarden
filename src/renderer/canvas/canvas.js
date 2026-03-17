@@ -183,8 +183,25 @@ const Canvas = {
     let marquee = null;
     let marqueeStart = null;
 
+    // Connection port drag state
+    let portDragging = false;
+
     // Pan: space+click, middle-click. Marquee: left-click on empty canvas
     this._handlers.mousedown = (e) => {
+      // Connection port drag — handle BEFORE anything else
+      const portEl = e.target.closest('.connection-port');
+      if (portEl && typeof ConnectionManager !== 'undefined') {
+        e.preventDefault();
+        e.stopPropagation();
+        const nodeId = portEl.dataset.nodeId;
+        const port = portEl.dataset.port;
+        const nodeData = this.workspace.nodes.find(n => n.id === nodeId);
+        if (nodeData && nodeData.locked) return;
+        portDragging = true;
+        ConnectionManager.startDrag(nodeId, port, e.clientX, e.clientY);
+        return;
+      }
+
       if (e.target.closest('.canvas-node') || e.target.closest('.node-context-menu') || e.target.closest('.text-style-popup')) return;
 
       if (e.button === 0 && !this.spaceHeld) {
@@ -208,6 +225,13 @@ const Canvas = {
     };
 
     this._handlers.mousemove = (e) => {
+      // Connection port drag
+      if (portDragging && typeof ConnectionManager !== 'undefined') {
+        const pos = this.screenToCanvas(e.clientX, e.clientY);
+        ConnectionManager.updateDrag(pos.x, pos.y);
+        return;
+      }
+
       if (this.isPanning) {
         const dx = e.clientX - this.lastMouse.x;
         const dy = e.clientY - this.lastMouse.y;
@@ -237,6 +261,13 @@ const Canvas = {
     };
 
     this._handlers.mouseup = (e) => {
+      // Connection port drag end
+      if (portDragging && typeof ConnectionManager !== 'undefined') {
+        portDragging = false;
+        ConnectionManager.endDrag();
+        return;
+      }
+
       if (this.isPanning) {
         this.isPanning = false;
         vp.classList.remove('panning');
