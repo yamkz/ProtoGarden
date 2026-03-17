@@ -18,7 +18,12 @@ const Canvas = {
     this.updateTransform();
     Toolbar.setWorkspaceName(this.workspace.name);
     Toolbar.updateZoom(this.zoom);
+    if (!this.workspace.connections) this.workspace.connections = [];
     this.renderAllNodes();
+    if (typeof ConnectionManager !== 'undefined') {
+      ConnectionManager.init();
+      ConnectionManager.renderAll();
+    }
     this.bindEvents();
   },
 
@@ -80,6 +85,8 @@ const Canvas = {
   scheduleSave() {
     if (this.saveTimeout) clearTimeout(this.saveTimeout);
     this.saveTimeout = setTimeout(() => this.save(), 500);
+    // Re-render connections to follow node positions
+    if (typeof ConnectionManager !== 'undefined') ConnectionManager.renderAll();
   },
 
   save() {
@@ -188,6 +195,7 @@ const Canvas = {
           document.querySelectorAll('.group-dimmed').forEach(el => el.classList.remove('group-dimmed'));
         }
         NodeBase.deselectAll();
+        if (typeof ConnectionManager !== 'undefined') ConnectionManager.deselectConnection();
         marqueeStart = { x: e.clientX, y: e.clientY };
       }
 
@@ -307,9 +315,13 @@ const Canvas = {
         if (!isEditing) e.preventDefault();
       }
 
-      // Delete selected nodes
-      if ((e.key === 'Delete' || e.key === 'Backspace') && NodeBase.selectedNodeIds.size > 0 && !isEditing) {
-        NodeBase.deleteSelected();
+      // Delete selected nodes or connections
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditing) {
+        if (NodeBase.selectedNodeIds.size > 0) {
+          NodeBase.deleteSelected();
+        } else if (typeof ConnectionManager !== 'undefined' && ConnectionManager.selectedConnectionId) {
+          ConnectionManager.deleteSelected();
+        }
       }
 
       // Cmd+Z undo / Cmd+Shift+Z redo

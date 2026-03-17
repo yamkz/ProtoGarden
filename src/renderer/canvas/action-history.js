@@ -101,6 +101,41 @@ const ActionHistory = {
         }
         break;
 
+      case 'connection-add':
+        if (direction === 'undo') {
+          if (Canvas.workspace.connections) {
+            Canvas.workspace.connections = Canvas.workspace.connections.filter(c => c.id !== action.connection.id);
+          }
+        } else {
+          if (!Canvas.workspace.connections) Canvas.workspace.connections = [];
+          Canvas.workspace.connections.push(JSON.parse(JSON.stringify(action.connection)));
+        }
+        if (typeof ConnectionManager !== 'undefined') ConnectionManager.renderAll();
+        break;
+
+      case 'connection-delete':
+        if (direction === 'undo') {
+          if (!Canvas.workspace.connections) Canvas.workspace.connections = [];
+          Canvas.workspace.connections.push(JSON.parse(JSON.stringify(action.connection)));
+        } else {
+          if (Canvas.workspace.connections) {
+            Canvas.workspace.connections = Canvas.workspace.connections.filter(c => c.id !== action.connection.id);
+          }
+        }
+        if (typeof ConnectionManager !== 'undefined') ConnectionManager.renderAll();
+        break;
+
+      case 'connection-reverse':
+        if (direction === 'undo') {
+          const conn = Canvas.workspace.connections?.find(c => c.id === action.connectionId);
+          if (conn) Object.assign(conn, action.before);
+        } else {
+          const conn = Canvas.workspace.connections?.find(c => c.id === action.connectionId);
+          if (conn) Object.assign(conn, action.after);
+        }
+        if (typeof ConnectionManager !== 'undefined') ConnectionManager.renderAll();
+        break;
+
       case 'group-ungroup':
         if (direction === 'undo') {
           // Re-create group

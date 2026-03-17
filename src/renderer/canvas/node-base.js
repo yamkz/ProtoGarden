@@ -80,6 +80,34 @@ const NodeBase = {
       el.appendChild(h);
     });
 
+    // Connection ports (top, bottom, left, right)
+    ['top', 'bottom', 'left', 'right'].forEach(port => {
+      const dot = document.createElement('div');
+      dot.className = `connection-port connection-port-${port}`;
+      dot.dataset.port = port;
+      dot.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (node.locked) return;
+        if (typeof ConnectionManager !== 'undefined') {
+          ConnectionManager.startDrag(node.id, port, e.clientX, e.clientY);
+
+          const onMove = (ev) => {
+            const pos = Canvas.screenToCanvas(ev.clientX, ev.clientY);
+            ConnectionManager.updateDrag(pos.x, pos.y);
+          };
+          const onUp = () => {
+            ConnectionManager.endDrag();
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+          };
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        }
+      });
+      el.appendChild(dot);
+    });
+
     // Lock indicator
     if (node.locked) {
       el.classList.add('locked');
@@ -242,7 +270,7 @@ const NodeBase = {
     const startDrag = (e) => {
       if (e.button !== 0) return;
       if (node.locked) return;
-      if (e.target.closest('.node-delete') || e.target.closest('.node-resize-handle')) return;
+      if (e.target.closest('.node-delete') || e.target.closest('.node-resize-handle') || e.target.closest('.connection-port')) return;
       if (e.target.closest('.node-preset-btn') || e.target.closest('.preset-submenu-item') || e.target.closest('.preset-submenu')) return;
       if (e.target.closest('.node-iframe')) return;
       if (e.target.closest('.note-textarea') || e.target.closest('.note-mode-btn') || e.target.closest('.note-model-btn') || e.target.closest('.note-run-btn')) return;
@@ -364,6 +392,8 @@ const NodeBase = {
         if (snap.guides.length > 0) SmartGuide.showGuides(snap.guides);
         else SmartGuide.clearGuides();
       }
+      // Update connections during drag
+      if (typeof ConnectionManager !== 'undefined') ConnectionManager.renderAll();
     });
 
     window.addEventListener('mouseup', () => {
@@ -666,6 +696,10 @@ const NodeBase = {
     const node = Canvas.workspace.nodes.splice(idx, 1)[0];
     if (!skipHistory) {
       ActionHistory.push({ type: 'node-delete', node: JSON.parse(JSON.stringify(node)) });
+    }
+    // Remove related connections
+    if (typeof ConnectionManager !== 'undefined') {
+      ConnectionManager.deleteConnectionsForNode(id);
     }
     document.querySelector(`.canvas-node[data-node-id="${id}"]`)?.remove();
     this.selectedNodeIds.delete(id);

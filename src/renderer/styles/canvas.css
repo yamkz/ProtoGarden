@@ -362,6 +362,38 @@
   z-index: 11;
 }
 
+/* Connection Ports */
+.connection-port {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #5bb8f5;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  z-index: 12;
+  cursor: crosshair;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.canvas-node.selected .connection-port {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.connection-port:hover,
+.connection-port.snap-highlight {
+  transform: translate(-50%, -50%) scale(1.4);
+  background: #4a9eff;
+}
+
+.connection-port-top { left: 50%; top: 0; }
+.connection-port-bottom { left: 50%; top: 100%; }
+.connection-port-left { left: 0; top: 50%; }
+.connection-port-right { left: 100%; top: 50%; }
+
 /* Smart Guide Lines */
 .smart-guide {
   position: absolute;

@@ -19,6 +19,11 @@ Task03: complete
 - PLAN03-M2: complete
 - PLAN03-M3: complete
 
+Task04: complete
+- PLAN04-M1: complete
+- PLAN04-M2: complete
+- PLAN04-M3: complete
+
 ## Example (この項目は編集してはいけません)
 
 Task01: {planned/in-progress/complete/rejected}
