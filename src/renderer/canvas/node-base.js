@@ -81,11 +81,19 @@ const NodeBase = {
     });
 
     // Connection ports (top, bottom, left, right)
+    // Size compensates for zoom so ports remain easy to click when zoomed out
     ['top', 'bottom', 'left', 'right'].forEach(port => {
       const dot = document.createElement('div');
       dot.className = `connection-port connection-port-${port}`;
       dot.dataset.port = port;
       dot.dataset.nodeId = node.id;
+      const zoom = Canvas.zoom || 1;
+      if (zoom < 0.8) {
+        const scale = Math.sqrt(0.8 / Math.max(zoom, 0.1));
+        const size = Math.round(12 * scale);
+        dot.style.width = `${size}px`;
+        dot.style.height = `${size}px`;
+      }
       el.appendChild(dot);
     });
 

@@ -18,8 +18,19 @@ const ConnectionManager = {
   getStrokeWidth(base) {
     const zoom = Canvas.zoom || 1;
     if (zoom >= 0.8) return base;
-    // Below 80% zoom, scale up to keep visible (min zoom 0.1 → max 4x)
-    return base / Math.max(zoom, 0.25);
+    // Below 80% zoom, gently scale up (square root for subtle compensation)
+    return base * Math.sqrt(0.8 / Math.max(zoom, 0.1));
+  },
+
+  /** Update port dot sizes for current zoom level */
+  updatePortSizes() {
+    const zoom = Canvas.zoom || 1;
+    const scale = zoom < 0.8 ? Math.sqrt(0.8 / Math.max(zoom, 0.1)) : 1;
+    const size = Math.round(12 * scale);
+    document.querySelectorAll('.connection-port').forEach(dot => {
+      dot.style.width = `${size}px`;
+      dot.style.height = `${size}px`;
+    });
   },
 
   init() {
@@ -33,16 +44,17 @@ const ConnectionManager = {
 
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
 
-    // Small minimal arrow marker
+    // Minimal arrow marker — markerUnits=userSpaceOnUse for consistent size
     const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
     marker.setAttribute('id', 'arrowhead');
-    marker.setAttribute('markerWidth', '6');
-    marker.setAttribute('markerHeight', '5');
-    marker.setAttribute('refX', '6');
-    marker.setAttribute('refY', '2.5');
+    marker.setAttribute('markerWidth', '8');
+    marker.setAttribute('markerHeight', '6');
+    marker.setAttribute('refX', '8');
+    marker.setAttribute('refY', '3');
     marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'userSpaceOnUse');
     const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    poly.setAttribute('points', '0 0, 6 2.5, 0 5');
+    poly.setAttribute('points', '0 0.5, 8 3, 0 5.5');
     poly.setAttribute('fill', 'rgba(74, 158, 255, 0.55)');
     marker.appendChild(poly);
     defs.appendChild(marker);
@@ -97,6 +109,7 @@ const ConnectionManager = {
     this.svgEl.querySelectorAll('.connection-path, .connection-hit').forEach(el => el.remove());
     const connections = Canvas.workspace.connections || [];
     connections.forEach(conn => this._renderConnection(conn));
+    this.updatePortSizes();
   },
 
   _renderConnection(conn) {
@@ -109,7 +122,7 @@ const ConnectionManager = {
     const d = this.calcPath(srcPos, conn.sourcePort, tgtPos, conn.targetPort);
     const isSelected = conn.id === this.selectedConnectionId;
 
-    const sw = this.getStrokeWidth(isSelected ? 3 : 2.5);
+    const sw = this.getStrokeWidth(isSelected ? 2.5 : 1.8);
     const dashScale = this.getStrokeWidth(1);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', d);
@@ -271,7 +284,7 @@ const ConnectionManager = {
     preview.setAttribute('class', 'connection-preview');
     preview.setAttribute('fill', 'none');
     preview.setAttribute('stroke', 'rgba(74, 158, 255, 0.7)');
-    preview.setAttribute('stroke-width', String(this.getStrokeWidth(2.5)));
+    preview.setAttribute('stroke-width', String(this.getStrokeWidth(1.8)));
     preview.setAttribute('stroke-dasharray', '6 4');
     preview.setAttribute('marker-end', 'url(#arrowhead)');
     preview.setAttribute('d', `M ${srcPos.x} ${srcPos.y} L ${srcPos.x} ${srcPos.y}`);
