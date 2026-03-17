@@ -331,6 +331,11 @@
 .canvas-node-group.group-editing {
   border-color: #4a9eff;
   border-style: solid;
+  pointer-events: none;
+}
+
+.canvas-node-group.group-editing .node-resize-handle {
+  display: none;
 }
 
 .canvas-node.group-dimmed {

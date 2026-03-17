@@ -247,6 +247,25 @@ const NodeBase = {
       if (e.target.closest('.node-iframe')) return;
       if (e.target.closest('.note-textarea') || e.target.closest('.note-mode-btn') || e.target.closest('.note-model-btn') || e.target.closest('.note-run-btn')) return;
       if (node.type === 'text' && this.editingTextNodeId === node.id) return;
+
+      // If this node is in a group and not in group edit mode, let the group handle drag
+      if (node.groupId && Canvas.editingGroupId !== node.groupId) {
+        // Don't start drag on child — the group's selection already happened via bindSelect.
+        // We need to initiate drag from the group's perspective.
+        const groupNode = Canvas.workspace.nodes.find(n => n.id === node.groupId);
+        if (groupNode && groupNode.locked) return;
+        e.stopPropagation();
+        dragReady = true;
+        dragging = false;
+        startX = e.clientX;
+        startY = e.clientY;
+        // Use group node position as the reference
+        startNodeX = groupNode ? groupNode.x : node.x;
+        startNodeY = groupNode ? groupNode.y : node.y;
+        dragStartPositions = collectDragNodes([node.groupId]);
+        return;
+      }
+
       e.stopPropagation();
       dragReady = true;
       dragging = false;
@@ -255,35 +274,34 @@ const NodeBase = {
       startNodeX = node.x;
       startNodeY = node.y;
 
-      // Record start positions for all selected nodes (for multi-drag)
-      // Include group children when dragging a group
-      const collectDragNodes = (nodeIds) => {
-        const positions = [];
-        const seen = new Set();
-        nodeIds.forEach(id => {
-          if (seen.has(id)) return;
-          seen.add(id);
-          const n = Canvas.workspace.nodes.find(nd => nd.id === id);
-          if (n) {
-            positions.push({ id: n.id, x: n.x, y: n.y });
-            if (n.type === 'group' && n.data.childIds) {
-              n.data.childIds.forEach(cid => {
-                if (seen.has(cid)) return;
-                seen.add(cid);
-                const cn = Canvas.workspace.nodes.find(nd => nd.id === cid);
-                if (cn) positions.push({ id: cn.id, x: cn.x, y: cn.y });
-              });
-            }
-          }
-        });
-        return positions;
-      };
-
       if (this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1) {
         dragStartPositions = collectDragNodes([...this.selectedNodeIds]);
       } else {
         dragStartPositions = collectDragNodes([node.id]);
       }
+    };
+
+    // Collect drag nodes including group children
+    const collectDragNodes = (nodeIds) => {
+      const positions = [];
+      const seen = new Set();
+      nodeIds.forEach(id => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        const n = Canvas.workspace.nodes.find(nd => nd.id === id);
+        if (n) {
+          positions.push({ id: n.id, x: n.x, y: n.y });
+          if (n.type === 'group' && n.data.childIds) {
+            n.data.childIds.forEach(cid => {
+              if (seen.has(cid)) return;
+              seen.add(cid);
+              const cn = Canvas.workspace.nodes.find(nd => nd.id === cid);
+              if (cn) positions.push({ id: cn.id, x: cn.x, y: cn.y });
+            });
+          }
+        }
+      });
+      return positions;
     };
 
     const header = el.querySelector('.node-header');
@@ -304,8 +322,8 @@ const NodeBase = {
       const dx = (e.clientX - startX) / Canvas.zoom;
       const dy = (e.clientY - startY) / Canvas.zoom;
 
-      // Multi-select drag: move all selected nodes
-      const isMulti = this.selectedNodeIds.has(node.id) && this.selectedNodeIds.size > 1 && dragStartPositions;
+      // Multi-select drag or group drag: move all collected nodes
+      const isMulti = dragStartPositions && dragStartPositions.length > 1;
       if (isMulti) {
         // Compute bounding box of all dragged nodes
         let bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;

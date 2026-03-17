@@ -90,7 +90,10 @@ const Canvas = {
 
   // Copy/Paste/Duplicate
   copySelectedNode() {
-    if (NodeBase.selectedNodeIds.size === 0) return;
+    if (NodeBase.selectedNodeIds.size === 0) {
+      this.clipboard = null;
+      return;
+    }
     const nodes = [];
     NodeBase.selectedNodeIds.forEach(id => {
       const node = this.workspace.nodes.find(n => n.id === id);
@@ -343,12 +346,20 @@ const Canvas = {
       }
     };
 
-    // Paste: images from clipboard or node paste
+    // Paste: internal node clipboard takes priority, then system clipboard images
     this._handlers.paste = async (e) => {
       if (App.currentView !== 'canvas') return;
       if (e.target.closest('.modal-input') || e.target.closest('input') || e.target.closest('textarea')) return;
       if (NodeBase.editingTextNodeId) return;
 
+      // Internal node clipboard takes priority
+      if (this.clipboard && this.clipboard.nodes && this.clipboard.nodes.length > 0) {
+        e.preventDefault();
+        this.pasteNode();
+        return;
+      }
+
+      // Fallback: system clipboard images
       const items = e.clipboardData?.items;
       if (items) {
         for (const item of items) {
@@ -359,12 +370,6 @@ const Canvas = {
             return;
           }
         }
-      }
-
-      // No image in clipboard → paste copied nodes
-      if (this.clipboard && this.clipboard.nodes && this.clipboard.nodes.length > 0) {
-        e.preventDefault();
-        this.pasteNode();
       }
     };
 
