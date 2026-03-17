@@ -133,6 +133,18 @@ function duplicateWorkspace(id) {
   const fileManager = require('./file-manager');
   fileManager.copyWorkspaceAssets(id, newId);
 
+  // Rename snapshot files to match new node IDs
+  const snapshotDir = path.join(storagePath, 'assets', newId, 'snapshots');
+  if (fs.existsSync(snapshotDir)) {
+    for (const [oldNodeId, newNodeId] of Object.entries(idMap)) {
+      const oldPath = path.join(snapshotDir, `${oldNodeId}.html`);
+      const newPath = path.join(snapshotDir, `${newNodeId}.html`);
+      if (fs.existsSync(oldPath)) {
+        fs.renameSync(oldPath, newPath);
+      }
+    }
+  }
+
   return { id: newId, name: newData.name, createdAt: now, updatedAt: now };
 }
 

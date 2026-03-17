@@ -209,7 +209,7 @@
 
 .workspace-card-actions {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   opacity: 0;
   transition: opacity var(--transition);
   flex-shrink: 0;
@@ -219,24 +219,25 @@
   opacity: 1;
 }
 
-.btn-card-action {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.btn-card-action-text {
+  padding: 4px 10px;
   border-radius: var(--radius-s);
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  background: transparent;
   transition: all var(--transition);
+  white-space: nowrap;
+  cursor: pointer;
+  border: none;
 }
 
-.btn-card-action:hover {
+.btn-card-action-text:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
 }
 
-.btn-card-action.danger:hover {
+.btn-card-action-text.danger:hover {
   color: var(--danger);
   background: rgba(196, 76, 76, 0.1);
 }

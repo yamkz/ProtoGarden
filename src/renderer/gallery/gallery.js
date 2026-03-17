@@ -18,10 +18,10 @@ const Gallery = {
         <div class="workspace-name">${this.escapeHtml(ws.name)}</div>
         <div class="workspace-meta">${this.formatDate(ws.updatedAt)}</div>
         <div class="workspace-card-actions">
-          <button class="btn-card-action" data-action="duplicate" data-id="${ws.id}" title="複製">&#9114;</button>
-          <button class="btn-card-action" data-action="export" data-id="${ws.id}" title="エクスポート">&#8615;</button>
-          <button class="btn-card-action" data-action="rename" data-id="${ws.id}" title="名前を変更">&#9998;</button>
-          <button class="btn-card-action danger" data-action="delete" data-id="${ws.id}" title="削除">&#10005;</button>
+          <button class="btn-card-action-text" data-action="duplicate" data-id="${ws.id}">複製</button>
+          <button class="btn-card-action-text" data-action="export" data-id="${ws.id}">書出</button>
+          <button class="btn-card-action-text" data-action="rename" data-id="${ws.id}">名変</button>
+          <button class="btn-card-action-text danger" data-action="delete" data-id="${ws.id}">削除</button>
         </div>
       </div>
     `).join('');
