@@ -151,11 +151,21 @@ const ConnectionManager = {
   },
 
   _startReconnect(conn, clientX, clientY) {
-    // Remove the connection and start a new drag from the source
+    // Save source info before deleting
     const { sourceNodeId, sourcePort } = conn;
-    this.deleteConnection(conn.id);
+    // Delete without re-render to avoid event handler recreation issues
+    if (Canvas.workspace.connections) {
+      const idx = Canvas.workspace.connections.findIndex(c => c.id === conn.id);
+      if (idx !== -1) {
+        const removed = Canvas.workspace.connections.splice(idx, 1)[0];
+        ActionHistory.push({ type: 'connection-delete', connection: JSON.parse(JSON.stringify(removed)) });
+      }
+    }
+    this.selectedConnectionId = null;
+    this.renderAll();
+    // Start drag and set reconnecting flag so viewport handles mousemove/mouseup
     this.startDrag(sourceNodeId, sourcePort, clientX, clientY);
-    // Immediately update to mouse position
+    this._reconnecting = true;
     const pos = Canvas.screenToCanvas(clientX, clientY);
     this.updateDrag(pos.x, pos.y);
   },
@@ -306,6 +316,7 @@ const ConnectionManager = {
 
     if (this._dragging.previewPath) this._dragging.previewPath.remove();
     this._dragging = null;
+    this._reconnecting = false;
     NodeBase.unblockIframes();
   },
 

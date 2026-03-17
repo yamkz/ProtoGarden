@@ -225,8 +225,8 @@ const Canvas = {
     };
 
     this._handlers.mousemove = (e) => {
-      // Connection port drag
-      if (portDragging && typeof ConnectionManager !== 'undefined') {
+      // Connection port drag or reconnect
+      if ((portDragging || (typeof ConnectionManager !== 'undefined' && ConnectionManager._reconnecting)) && typeof ConnectionManager !== 'undefined') {
         const pos = this.screenToCanvas(e.clientX, e.clientY);
         ConnectionManager.updateDrag(pos.x, pos.y);
         return;
@@ -261,8 +261,8 @@ const Canvas = {
     };
 
     this._handlers.mouseup = (e) => {
-      // Connection port drag end
-      if (portDragging && typeof ConnectionManager !== 'undefined') {
+      // Connection port drag end or reconnect end
+      if ((portDragging || (typeof ConnectionManager !== 'undefined' && ConnectionManager._reconnecting)) && typeof ConnectionManager !== 'undefined') {
         portDragging = false;
         ConnectionManager.endDrag();
         return;
